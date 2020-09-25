@@ -116,14 +116,6 @@ public class IDInfoDBService {
                 else {
                     typeList.put(type,1);
                 }
-            } else if (TokenSellOrderBox.class.isAssignableFrom(currentBox.getClass())){
-                String type  = TokenSellOrderBox.parseBytes(currentBox.bytes()).getID();
-                if (typeList.containsKey(type)) {
-                    typeList.put(type, typeList.get(type)+1);
-                }
-                else {
-                    typeList.put(type,1);
-                }
             }
         }
         return typeList;
@@ -143,10 +135,7 @@ public class IDInfoDBService {
         String type = "";
         if (TokenBox.class.isAssignableFrom(box.getClass())){
             type += TokenBox.parseBytes(box.bytes()).getType();
-        } else if (TokenSellOrderBox.class.isAssignableFrom(box.getClass())){
-            type += TokenSellOrderBox.parseBytes(box.bytes()).getID();
         }
-
         return type;
     }
 

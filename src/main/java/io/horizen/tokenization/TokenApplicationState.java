@@ -4,10 +4,14 @@ import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.horizen.block.SidechainBlock;
 import com.horizen.box.Box;
+import com.horizen.box.BoxUnlocker;
 import com.horizen.proposition.Proposition;
+import com.horizen.proposition.PublicKey25519Proposition;
+import com.horizen.proposition.PublicKey25519PropositionSerializer;
 import com.horizen.state.ApplicationState;
 import com.horizen.state.SidechainStateReader;
 import com.horizen.transaction.BoxTransaction;
+import com.horizen.utils.BytesUtils;
 import io.horizen.tokenization.token.box.TokenBox;
 import io.horizen.tokenization.token.services.IDInfoDBService;
 import io.horizen.tokenization.token.transaction.CreateTokensTransaction;
@@ -24,7 +28,6 @@ public class TokenApplicationState implements ApplicationState {
 
 	private IDInfoDBService IDInfoDbService;
 	private Config config;
-	private int maxToken;
     private ArrayList<String> creator;
     private HashMap<String, Integer> maxTokenPerType;
 
@@ -32,7 +35,6 @@ public class TokenApplicationState implements ApplicationState {
 	public TokenApplicationState(IDInfoDBService IDInfoDbService, @Named("ConfigTokenizationApp") Config config) {
 	    this.IDInfoDbService = IDInfoDbService;
 	    this.config = config;
-        this.maxToken = Integer.valueOf(this.config.getObject("token").get("maxNumber").render());
         this.creator = (ArrayList<String>) this.config.getObject("token").get("creatorPropositions").unwrapped();
         this.maxTokenPerType = (HashMap<String,Integer>) this.config.getObject("token").get("typeLimit").unwrapped();
     }
@@ -61,9 +63,25 @@ public class TokenApplicationState implements ApplicationState {
                         }
                         else {
                             typeCount.put(type, 1);
-                        }                    }
+                        }
+                    }
                 }
-
+                boolean authorized = false;
+                for (BoxUnlocker<Proposition> input : t.unlockers()) {
+                    for (String publicKey : this.creator) {
+                        System.out.println("PublicKey "+publicKey);
+                        PublicKey25519Proposition testProposition = PublicKey25519PropositionSerializer.getSerializer()
+                                .parseBytes(BytesUtils.fromHexString(publicKey));
+                        if (testProposition.verify(t.messageToSign(),input.boxKey().bytes())) {
+                            System.out.println("Authorized for: "+publicKey);
+                            authorized = true;
+                        }
+                    }
+                }
+                if(!authorized) {
+                    System.out.println("Not authorized!");
+                    return false;
+                }
             }
             // Check that the max limit of token is not reached
             for (String key : typeCount.keySet()) {
@@ -78,7 +96,6 @@ public class TokenApplicationState implements ApplicationState {
 
     @Override
     public boolean validate(SidechainStateReader stateReader, BoxTransaction<Proposition, Box<Proposition>> transaction) {
-        // we go though all CarDeclarationTransactions and verify that each CarBox reflects to unique Car.
         if (CreateTokensTransaction.class.isInstance(transaction)){
             HashMap<String, Integer> typeCount = new HashMap<String, Integer>();
             for (Box box : transaction.newBoxes()) {
@@ -102,6 +119,22 @@ public class TokenApplicationState implements ApplicationState {
                         typeCount.put(type, 1);
                     }
                 }
+            }
+            boolean authorized = false;
+            for (BoxUnlocker<Proposition> input : transaction.unlockers()) {
+                for (String publicKey : this.creator) {
+                    System.out.println("PublicKey "+publicKey);
+                    PublicKey25519Proposition testProposition = PublicKey25519PropositionSerializer.getSerializer()
+                            .parseBytes(BytesUtils.fromHexString(publicKey));
+                    if (testProposition.verify(transaction.messageToSign(),input.boxKey().bytes())) {
+                        System.out.println("Authorized for: "+publicKey);
+                        authorized = true;
+                    }
+                }
+            }
+            if(!authorized) {
+                System.out.println("Not authorized!");
+                return false;
             }
             // Check that the max limit of token is not reached
             for (String key : typeCount.keySet()) {
