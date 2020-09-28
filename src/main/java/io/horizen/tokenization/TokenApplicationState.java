@@ -16,6 +16,8 @@ import io.horizen.tokenization.token.box.TokenBox;
 import io.horizen.tokenization.token.services.IDInfoDBService;
 import io.horizen.tokenization.token.transaction.CreateTokensTransaction;
 import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.util.Success;
 import scala.util.Try;
 
@@ -31,6 +33,8 @@ public class TokenApplicationState implements ApplicationState {
     private ArrayList<String> creator;
     private HashMap<String, Integer> maxTokenPerType;
 
+    private static Logger log =  LoggerFactory.getLogger(TokenApplicationState.class);
+
 	@Inject
 	public TokenApplicationState(IDInfoDBService IDInfoDbService, @Named("ConfigTokenizationApp") Config config) {
 	    this.IDInfoDbService = IDInfoDbService;
@@ -41,7 +45,7 @@ public class TokenApplicationState implements ApplicationState {
 
     @Override
     public boolean validate(SidechainStateReader stateReader, SidechainBlock block) {
-        //We check that there are no multiple transactions declaring the same VIN inside the block
+        //The foWe check that there are no multiple transactions declaring the token id inside the block
         HashMap<String, Integer> typeCount = new HashMap<String, Integer>();
         for (BoxTransaction<Proposition, Box<Proposition>> t :  JavaConverters.seqAsJavaList(block.transactions())){
             if (CreateTokensTransaction.class.isInstance(t)){
@@ -49,7 +53,7 @@ public class TokenApplicationState implements ApplicationState {
                     if (TokenBox.class.isInstance(box)) {
                         // Check that only the propositions specified in the config are able to create tokens
                         if (!this.creator.contains(ByteUtils.toHexString(box.proposition().bytes()))) {
-                            System.out.println("Error during block validation: this proposition is not allowed to create tokens!");
+                            log.error("Error during block validation: this proposition is not allowed to create tokens!");
                             return false;
                         }
                         // Check that token ID is not already used

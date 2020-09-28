@@ -23,11 +23,10 @@ import java.util.List;
 
 import static io.horizen.tokenization.token.transaction.TokenTransactionsIdsEnum.CreateTokensTransactionId;
 
-// CarDeclarationTransaction is nested from AbstractRegularTransaction so support regular coins transmission as well.
-// Moreover it was designed to declare new Cars in the sidechain network.
-// As outputs it contains possible RegularBoxes(to pay fee and change) and new CarBox entry.
+// CreateTokensTransaction is nested from AbstractRegularTransaction so support regular coins transmission as well.
+// Moreover it was designed to declare new Tokens in the sidechain network.
+// As outputs it contains possible RegularBoxes(to pay fee and change) and new TokenBox entry.
 // No specific unlockers to parent class logic, but has specific new box.
-// TODO: add specific mempool incompatibility checker to deprecate keeping in the Mempool txs that declare the same Car.
 public final class CreateTokensTransaction extends AbstractRegularTransaction {
 
     private final TokenBoxData[] outputTokenBoxData;
@@ -47,8 +46,7 @@ public final class CreateTokensTransaction extends AbstractRegularTransaction {
     @Override
     public byte transactionTypeId() { return CreateTokensTransactionId.id(); }
 
-    // Override newBoxes to contains regularBoxes from the parent class appended with CarBox entry.
-    // The nonce calculation algorithm for CarBox is the same as in parent class.
+    // Override newBoxes to contains regularBoxes from the parent class appended with TokenBox entries.
     @Override
     public synchronized List<NoncedBox<Proposition>> newBoxes() {
         if(newBoxes == null) {
@@ -61,7 +59,7 @@ public final class CreateTokensTransaction extends AbstractRegularTransaction {
         return Collections.unmodifiableList(newBoxes);
     }
 
-    // Define object serialization, that should serialize both parent class entries and CarBoxData as well
+    // Define object serialization, that should serialize both parent class entries and TokenBoxData as well
     @Override
     public byte[] bytes() {
         ByteArrayOutputStream inputsIdsStream = new ByteArrayOutputStream();

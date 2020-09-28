@@ -16,15 +16,20 @@ import java.util.Arrays;
 import static io.horizen.tokenization.token.box.data.TokenBoxesDataIdsEnum.TokenBoxDataId;
 
 @JsonView(Views.Default.class)
+/**
+ * This class specifies the properties of a token.
+ * Each token has the following properties:
+ * - a unique ID, set douring token creation and does not change upon selling.
+ * - a type
+ */
 public final class TokenBoxData extends AbstractNoncedBoxData<PublicKey25519Proposition, TokenBox, TokenBoxData> {
 
-    // In CarRegistry example we defined 4 main car attributes:
-    private final String id;   // Vehicle Identification Number
+    private final String id;   // unique token id
     private final String type;
 
-    // Additional check on VIN length can be done as well, but not present as a part of current example.
+
     public TokenBoxData(PublicKey25519Proposition proposition, String id, String type) {
-        //AbstractNoncedBoxData requires value to be set in constructor. However, our car is unique object without any value in ZEN by default. So just set value to 1
+        //AbstractNoncedBoxData requires value to be set in constructor. However, our token has no value in ZEN by default. So just set value to 0
         super(proposition, 0);
         this.id = id;
         this.type = type;

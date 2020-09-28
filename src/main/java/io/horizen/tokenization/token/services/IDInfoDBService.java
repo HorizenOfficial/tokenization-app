@@ -21,7 +21,7 @@ import java.util.*;
 import com.typesafe.config.Config;
 
 /**
- * This service manages a local db with the list of all veichle identification numbers (vin) declared on the chain.
+ * This service manages a local db with the list of all token IDS declared on the chain.
  * The vin could be present inside two type of boxes: CarBox and CarSellOrderBox.
  */
 public class IDInfoDBService {
@@ -30,7 +30,7 @@ public class IDInfoDBService {
     protected Logger log = LoggerFactory.getLogger(IDInfoDBService.class.getName());
 
     @Inject
-    public IDInfoDBService(@Named("CarInfoStorage") Storage IDInfoStorage){
+    public IDInfoDBService(@Named("TokenInfoStorage") Storage IDInfoStorage){
         this.IDInfoStorage = IDInfoStorage;
         log.debug("TokenInfoStorage now contains: "+ IDInfoStorage.getAll().size()+" elements");
     }

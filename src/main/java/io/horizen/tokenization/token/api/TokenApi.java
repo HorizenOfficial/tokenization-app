@@ -397,7 +397,7 @@ public class TokenApi extends ApplicationApiGroup {
             Optional<Secret> ownerSecretOption = view.getNodeWallet().secretByPublicKey(
                     new PublicKey25519Proposition(tokenSellOrderBox.proposition().getOwnerPublicKeyBytes()));
             if(!ownerSecretOption.isPresent()) {
-                return new TokenResponseError("0100", "Can't buy the car, because the owner proposition is not owned by the Node.", Option.empty());
+                return new TokenResponseError("0100", "Can't buy the token, because the owner proposition is not owned by the Node.", Option.empty());
             }
 
             // Get Regular boxes to pay the fee

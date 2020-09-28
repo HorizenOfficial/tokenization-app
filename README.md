@@ -10,10 +10,11 @@ Tokenization-app is an example of how the Sidechains SDK can be extended to supp
 **Tokenization custom logic**
 
 A user of the Tokenization-app application can:
-* Create tokens by specifying the token type.
-* Sell an owned token by creating a the sell order associated to a price, that will have to be accepted by a specified buyer.
-* Cancel the token selling process, i.e. the token owner can revert the sell order.
-* Accept a token sell order, with a payment by the specified buyer to the previous token owner. This transaction makes the buyer the new owner of the token.
+* Create tokens by specifying the token type and the number of tokens to create. 
+The app is designed to allow only some predefined users to forge the tokens, and to enforce a maximum amount of tokens to be forged for each token type. The parameters for these rules are defined in custom section of the configuration file (see below).
+* Sell one or more owned s, by creating a sell order associated to a price, that will have to be accepted by a specified buyer.
+* Cancel the token selling process, i.e. the creator of a sell order can delete it.
+* Accept a token sell order, with a payment by the specified buyer to the previous token owner. This transaction makes the buyer the new owner of all the tokens contained in the sell order (is not poossible to acccept partially a sell order).
 
 **Supported platforms**
 

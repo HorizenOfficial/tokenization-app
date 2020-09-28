@@ -17,8 +17,7 @@ import java.util.Arrays;
 @JsonView(Views.Default.class)
 public final class TokenSellOrderBoxData extends AbstractNoncedBoxData<SellOrderProposition, TokenSellOrderBox, TokenSellOrderBoxData> {
 
-    // Car sell order attributes is similar to car attributes.
-    // The only change is that Sell order contains the car price as well.
+    // Token sell order attributes is similar to token attributes.
     private final String id;
     private final String type;
 

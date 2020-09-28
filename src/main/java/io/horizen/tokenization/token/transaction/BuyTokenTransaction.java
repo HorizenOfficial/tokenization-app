@@ -24,18 +24,18 @@ import java.util.List;
 
 import static io.horizen.tokenization.token.transaction.TokenTransactionsIdsEnum.BuyTokenTransactionId;
 
-// BuyCarTransaction is nested from AbstractRegularTransaction so support regular coins transmission as well.
-// BuyCarTransaction was designed to accept the SellOrder by specific buyer or to cancel it by the owner.
-// As outputs it contains possible RegularBoxes(to pay to the sell order owner and make change) and new CarBox entry.
-// As unlockers it contains RegularBoxes and CarSellOrder to open.
+// BuyTokenTransaction is nested from AbstractRegularTransaction so support regular coins transmission as well.
+// BuyTokenTransaction was designed to accept the SellOrder by specific buyer or to cancel it by the owner.
+// As outputs it contains possible RegularBoxes(to pay to the sell order owner and make change) and new TokenBox entry.
+// As unlockers it contains RegularBoxes and TokenSellOrder to open.
 public final class BuyTokenTransaction extends AbstractRegularTransaction {
 
-    // CarBuyOrderInfo is a view that describes what sell order to open and who will be the next owner.
-    // But inside it contains just a minimum set of info (like CarSellOrderBox itself and proof) that is the unique source of data.
+    // TokenBuyOrderInfo is a view that describes what sell order to open and who will be the next owner.
+    // But inside it contains just a minimum set of info (like TokenSellOrderBox itself and proof) that is the unique source of data.
     // So, no one outside controls what will be the specific outputs of this transaction.
     // Any malicious actions will lead to transaction invalidation.
-    // For example, if SellOrder was accepted by the buyer specified, CarBuyOrderInfo view returns as the new box data
-    // new instance of CarBoxData the owned by the buyer and RegularBoxData with the payment to previous owner.
+    // For example, if SellOrder was accepted by the buyer specified, TokenBuyOrderInfo view returns as the new box data
+    // new instance of TokenBoxData the owned by the buyer and RegularBoxData with the payment to previous owner.
     private final TokenBuyOrderInfo tokenBuyOrderInfo;
 
     private List<NoncedBox<Proposition>> newBoxes;
@@ -56,7 +56,7 @@ public final class BuyTokenTransaction extends AbstractRegularTransaction {
         return BuyTokenTransactionId.id();
     }
 
-    // Override unlockers to contains regularBoxes from the parent class appended with CarSellOrderBox entry.
+    // Override unlockers to contains regularBoxes from the parent class appended with TokenSellOrderBox entry.
     @Override
     public List<BoxUnlocker<Proposition>> unlockers() {
         // Get Regular unlockers from base class.
@@ -73,13 +73,12 @@ public final class BuyTokenTransaction extends AbstractRegularTransaction {
                 return tokenBuyOrderInfo.getTokenSellOrderSpendingProof();
             }
         };
-        // Append with the CarSellOrderBox unlocker entry.
         unlockers.add(unlocker);
 
         return unlockers;
     }
 
-    // Override newBoxes to contains regularBoxes from the parent class appended with CarBox and payment entries.
+    // Override newBoxes to contains regularBoxes from the parent class appended with TokenBox and payment entries.
     // The nonce calculation algorithm for Boxes is the same as in parent class.
     @Override
     public List<NoncedBox<Proposition>> newBoxes() {
@@ -87,11 +86,10 @@ public final class BuyTokenTransaction extends AbstractRegularTransaction {
             // Get new boxes from base class.
             newBoxes = new ArrayList<>(super.newBoxes());
 
-            // Set CarBox with specific owner depends on proof. See CarBuyOrderInfo.getNewOwnerCarBoxData() definition.
             long nonce = getNewBoxNonce(tokenBuyOrderInfo.getNewOwnerTokenBoxData().proposition(), newBoxes.size());
             newBoxes.add((NoncedBox) new TokenBox(tokenBuyOrderInfo.getNewOwnerTokenBoxData(), nonce));
 
-            // If Sell Order was opened by the buyer -> add payment box for Car previous owner.
+            // If Sell Order was opened by the buyer -> add payment box for token previous owner.
             if (!tokenBuyOrderInfo.isSpentByOwner()) {
                 RegularBoxData paymentBoxData = tokenBuyOrderInfo.getPaymentBoxData();
                 nonce = getNewBoxNonce(paymentBoxData.proposition(), newBoxes.size());
@@ -102,7 +100,7 @@ public final class BuyTokenTransaction extends AbstractRegularTransaction {
 
     }
 
-    // Define object serialization, that should serialize both parent class entries and CarBuyOrderInfo as well
+    // Define object serialization, that should serialize both parent class entries and TokenBuyOrderInfo as well
     @Override
     public byte[] bytes() {
         ByteArrayOutputStream inputsIdsStream = new ByteArrayOutputStream();
@@ -172,7 +170,7 @@ public final class BuyTokenTransaction extends AbstractRegularTransaction {
         return new BuyTokenTransaction(inputRegularBoxIds, inputRegularBoxProofs, outputRegularBoxesData, tokenBuyOrderInfo, fee, timestamp);
     }
 
-    // Set specific Serializer for BuyCarTransaction class.
+    // Set specific Serializer for BuyTokenTransaction class.
     @Override
     public TransactionSerializer serializer() {
         return BuyTokenTransactionSerializer.getSerializer();

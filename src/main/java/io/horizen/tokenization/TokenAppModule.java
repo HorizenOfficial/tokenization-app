@@ -99,7 +99,7 @@ public class TokenAppModule
         File stateStore = new File(dataDirPath + "/state");
         File historyStore = new File(dataDirPath + "/history");
         File consensusStore = new File(dataDirPath + "/consensusData");
-        File carInfoStore = new File(dataDirPath + "/cars");
+        File tokenInfoStore = new File(dataDirPath + "/tokens");
 
         // No core API endpoints to be disabled:
         List<Pair<String, String>> rejectedApiPaths = new ArrayList<>();
@@ -161,8 +161,8 @@ public class TokenAppModule
                 .annotatedWith(Names.named("ConsensusStorage"))
                 .toInstance(IODBStorageUtil.getStorage(consensusStore));
         bind(Storage.class)
-                .annotatedWith(Names.named("CarInfoStorage"))
-                .toInstance(IODBStorageUtil.getStorage(carInfoStore));
+                .annotatedWith(Names.named("TokenInfoStorage"))
+                .toInstance(IODBStorageUtil.getStorage(tokenInfoStore));
 
         bind(new TypeLiteral<List<Pair<String, String>>> () {})
                 .annotatedWith(Names.named("RejectedApiPaths"))
@@ -173,8 +173,7 @@ public class TokenAppModule
                 .toInstance(transactionsCompanion);
     }
 
-    // Add car registry specific API endpoints:
-    // CarApi endpoints processing will be added to the API server.
+    // Add app specific API endpoints
     @Provides @Named("CustomApiGroups")
     List<ApplicationApiGroup> getCustomApiGroups(TokenApi tokenApi) {
         List<ApplicationApiGroup> customApiGroups = new ArrayList<>();
