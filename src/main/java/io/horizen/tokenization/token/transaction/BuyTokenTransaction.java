@@ -13,6 +13,7 @@ import com.horizen.proof.Signature25519;
 import com.horizen.proposition.Proposition;
 import com.horizen.transaction.TransactionSerializer;
 import com.horizen.utils.BytesUtils;
+import io.horizen.tokenization.token.box.data.TokenBoxData;
 import io.horizen.tokenization.token.info.TokenBuyOrderInfo;
 import scorex.core.NodeViewModifier$;
 
@@ -86,13 +87,17 @@ public final class BuyTokenTransaction extends AbstractRegularTransaction {
             // Get new boxes from base class.
             newBoxes = new ArrayList<>(super.newBoxes());
 
-            long nonce = getNewBoxNonce(tokenBuyOrderInfo.getNewOwnerTokenBoxData().proposition(), newBoxes.size());
-            newBoxes.add((NoncedBox) new TokenBox(tokenBuyOrderInfo.getNewOwnerTokenBoxData(), nonce));
+            //recreate token boxes
+            for (int i = 0; i < tokenBuyOrderInfo.getTokenLenght(); i++) {
+                TokenBoxData boxData = tokenBuyOrderInfo.getTokenBoxData(i);
+                long nonce = getNewBoxNonce(boxData.proposition(), newBoxes.size());
+                newBoxes.add((NoncedBox) new TokenBox(boxData, nonce));
+            }
 
             // If Sell Order was opened by the buyer -> add payment box for token previous owner.
             if (!tokenBuyOrderInfo.isSpentByOwner()) {
                 RegularBoxData paymentBoxData = tokenBuyOrderInfo.getPaymentBoxData();
-                nonce = getNewBoxNonce(paymentBoxData.proposition(), newBoxes.size());
+                long nonce = getNewBoxNonce(paymentBoxData.proposition(), newBoxes.size());
                 newBoxes.add((NoncedBox) new RegularBox(paymentBoxData, nonce));
             }
         }

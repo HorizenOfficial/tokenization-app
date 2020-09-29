@@ -60,19 +60,22 @@ public final class SellTokenTransaction extends AbstractRegularTransaction {
         // Get Regular unlockers from base class.
         List<BoxUnlocker<Proposition>> unlockers = super.unlockers();
 
-        BoxUnlocker<Proposition> unlocker = new BoxUnlocker<Proposition>() {
-            @Override
-            public byte[] closedBoxId() {
-                return tokenSellOrderInfo.getTokenBoxToOpen().id();
-            }
-
-            @Override
-            public Proof boxKey() {
-                return tokenSellOrderInfo.getCarBoxSpendingProof();
-            }
-        };
-        // Append with the TokenBox unlocker entry.
-        unlockers.add(unlocker);
+        for (int i = 0 ; i < tokenSellOrderInfo.getTotalTokensToSell(); i++) {
+            final byte[] boxId = tokenSellOrderInfo.getTokenBoxToOpen(i).id();
+            final Proof proof = tokenSellOrderInfo.getTokenBoxSpendingProof(i);
+            BoxUnlocker<Proposition> unlocker = new BoxUnlocker<Proposition>() {
+                @Override
+                public byte[] closedBoxId() {
+                    return boxId;
+                }
+                @Override
+                public Proof boxKey() {
+                    return proof;
+                }
+            };
+            // Append with the TokenBox unlocker entry.
+            unlockers.add(unlocker);
+        }
 
         return unlockers;
     }

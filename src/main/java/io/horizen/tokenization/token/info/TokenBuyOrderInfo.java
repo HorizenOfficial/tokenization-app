@@ -6,6 +6,7 @@ import com.horizen.box.data.RegularBoxData;
 import io.horizen.tokenization.token.box.TokenSellOrderBox;
 import io.horizen.tokenization.token.box.TokenSellOrderBoxSerializer;
 import io.horizen.tokenization.token.box.data.TokenBoxData;
+import io.horizen.tokenization.token.box.data.TokenSellOrderItem;
 import io.horizen.tokenization.token.proof.SellOrderSpendingProof;
 import io.horizen.tokenization.token.proof.SellOrderSpendingProofSerializer;
 import com.horizen.proposition.PublicKey25519Proposition;
@@ -31,22 +32,22 @@ public final class TokenBuyOrderInfo {
         return proof;
     }
 
-    // Recreates output CarBoxData with the same attributes specified in CarSellOrder.
-    // Specifies the new owner depends on proof provided:
-    // 1) if the proof is from the seller then the owner remain the same
-    // 2) if the proof is from the buyer then it will become the new owner
-    public TokenBoxData getNewOwnerTokenBoxData() {
+    public int getTokenLenght(){
+        return tokenSellOrderBoxToOpen.getBoxData().getOrderItemLenght();
+    }
+
+    public TokenBoxData getTokenBoxData(int index) {
+        TokenSellOrderItem item =  tokenSellOrderBoxToOpen.getBoxData().getOrderItem(index);
         PublicKey25519Proposition proposition;
         if(proof.isSeller()) {
-            proposition = new PublicKey25519Proposition(tokenSellOrderBoxToOpen.proposition().getOwnerPublicKeyBytes());
+            proposition = item.getOwnerProposition();
         } else {
             proposition = new PublicKey25519Proposition(tokenSellOrderBoxToOpen.proposition().getBuyerPublicKeyBytes());
         }
-
         return new TokenBoxData(
                 proposition,
-                tokenSellOrderBoxToOpen.getTokenId(),
-                tokenSellOrderBoxToOpen.getType()
+                item.getTokenId(),
+                item.getType()
         );
     }
 

@@ -223,17 +223,20 @@ public class TokenApi extends ApplicationApiGroup {
     private ApiResponse createTokenSellOrder(SidechainNodeView view, CreateTokenSellOrderRequest ent) {
         try {
             // Try to find TokenBox to be opened in the closed boxes list
-            TokenBox tokenBox = null;
-
-            for (Box b : view.getNodeWallet().boxesOfType(TokenBox.class)) {
-                if (Arrays.equals(b.id(), BytesUtils.fromHexString(ent.tokenBoxId)))
-                    tokenBox = (TokenBox) b;
+            TokenBox[] tokenBoxes = new TokenBox[ent.tokenBoxIds.length];
+            Signature25519[] boxProofs = new Signature25519[ent.tokenBoxIds.length];
+            for (int i = 0; i < ent.tokenBoxIds.length; i++) {
+               String boxid = ent.tokenBoxIds[i];
+                for (Box b : view.getNodeWallet().boxesOfType(TokenBox.class)) {
+                    if (Arrays.equals(b.id(), BytesUtils.fromHexString(boxid))){
+                        tokenBoxes[i] = (TokenBox) b;
+                        break;
+                    }
+                }
+                if (tokenBoxes[i]  == null){
+                    throw new IllegalArgumentException("TokenBox with given id "+boxid+" not found in the Wallet.");
+                }
             }
-
-            if (tokenBox == null) {
-                throw new IllegalArgumentException("TokenBox with given box id not found in the Wallet.");
-            }
-
             // Parse the proposition of the Car buyer.
             PublicKey25519Proposition tokenBuyerProposition = PublicKey25519PropositionSerializer.getSerializer()
                     .parseBytes(BytesUtils.fromHexString(ent.buyerProposition));
@@ -268,7 +271,7 @@ public class TokenApi extends ApplicationApiGroup {
             }
 
             // Create fake proofs to be able to create transaction to be signed.
-            TokenSellOrderInfo fakeSaleOrderInfo = new TokenSellOrderInfo(tokenBox, null, ent.sellPrice, tokenBuyerProposition);
+            TokenSellOrderInfo fakeSaleOrderInfo = new TokenSellOrderInfo(tokenBoxes, boxProofs, ent.sellPrice, tokenBuyerProposition);
             List<Signature25519> fakeRegularInputProofs = Collections.nCopies(inputRegularBoxIds.size(), null);
 
             Long timestamp = System.currentTimeMillis();
@@ -291,9 +294,13 @@ public class TokenApi extends ApplicationApiGroup {
                 regularInputProofs.add((Signature25519) view.getNodeWallet().secretByPublicKey(box.proposition()).get().sign(messageToSign));
             }
 
+            for (int i = 0; i < tokenBoxes.length; i++){
+                boxProofs[i] =  (Signature25519)view.getNodeWallet().secretByPublicKey(tokenBoxes[i].proposition()).get().sign(messageToSign);
+            }
+
             TokenSellOrderInfo saleOrderInfo = new TokenSellOrderInfo(
-                    tokenBox,
-                    (Signature25519)view.getNodeWallet().secretByPublicKey(tokenBox.proposition()).get().sign(messageToSign),
+                    tokenBoxes,
+                    boxProofs,
                     ent.sellPrice,
                     tokenBuyerProposition);
 

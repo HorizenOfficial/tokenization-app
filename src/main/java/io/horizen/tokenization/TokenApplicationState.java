@@ -112,11 +112,11 @@ public class TokenApplicationState implements ApplicationState {
                         return false;
                     }
                     // Check that token ID is not already used
-                    if (! IDInfoDbService.validateId(IDInfoDbService.extractTokenIdFromBox(box), Optional.empty())){
+                    if (! IDInfoDbService.validateId(currBox.getTokenId(), Optional.empty())){
                         log.warn("Error during transaction validation: The token ID already exists!");
                         return false;
                     }
-                    String type = IDInfoDbService.extractTypeFromBox(box);
+                    String type = currBox.getType();
                     if (typeCount.containsKey(type)) {
                         typeCount.put(type, typeCount.get(type)+1);
                     }
@@ -128,7 +128,7 @@ public class TokenApplicationState implements ApplicationState {
             // Check that the max limit of token is not reached
             for (String key : typeCount.keySet()) {
                 if(IDInfoDbService.getTypeCount(key) + typeCount.get(key) > this.maxTokenPerType.get(key)) {
-                    System.out.println("Error during transaction validation: Exceed the maximum number of tokens that can be created inside the transaction!");
+                    log.warn("Error during transaction validation: Exceed the maximum number of tokens that can be created inside the transaction!");
                     return false;
                 }
             }

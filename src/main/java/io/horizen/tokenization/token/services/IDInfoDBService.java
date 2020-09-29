@@ -98,8 +98,11 @@ public class IDInfoDBService {
                 String id  = TokenBox.parseBytes(currentBox.bytes()).getTokenId();
                 idList.add(id);
             } else if (TokenSellOrderBox.class.isAssignableFrom(currentBox.getClass())){
-                String id  = TokenSellOrderBox.parseBytes(currentBox.bytes()).getTokenId();
-                idList.add(id);
+                TokenSellOrderBox sellOrderBox = TokenSellOrderBox.parseBytes(currentBox.bytes());
+                for (int i = 0; i < sellOrderBox.getBoxData().getOrderItemLenght(); i++){
+                    String id  =  sellOrderBox.getBoxData().getOrderItem(i).getTokenId();
+                    idList.add(id);
+                }
             }
         }
         return idList;
@@ -120,25 +123,6 @@ public class IDInfoDBService {
         }
         return typeList;
     }
-
-    public String extractTokenIdFromBox(Box<Proposition> box) {
-        String id = "";
-        if (TokenBox.class.isAssignableFrom(box.getClass())){
-            id += TokenBox.parseBytes(box.bytes()).getTokenId();
-        } else if (TokenSellOrderBox.class.isAssignableFrom(box.getClass())){
-            id += TokenSellOrderBox.parseBytes(box.bytes()).getTokenId();
-        }
-        return id;
-    }
-
-    public String extractTypeFromBox(Box<Proposition> box){
-        String type = "";
-        if (TokenBox.class.isAssignableFrom(box.getClass())){
-            type += TokenBox.parseBytes(box.bytes()).getType();
-        }
-        return type;
-    }
-
 
 
     private Pair<ByteArrayWrapper, ByteArrayWrapper> buildDBElement(String id){
