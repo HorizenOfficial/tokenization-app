@@ -59,11 +59,11 @@ public class TokenApplicationState implements ApplicationState {
                 for (Box box : t.newBoxes()) {
                     if (TokenBox.class.isInstance(box)) {
                         TokenBox currBox = TokenBox.parseBytes(box.bytes());
-                        if (tokenIdList.contains(currBox.getID())){
+                        if (tokenIdList.contains(currBox.getTokenId())){
                             log.warn("Error during block validation: same token ID declared inside the block");
                             return false;
                         }else{
-                            tokenIdList.add(currBox.getID());
+                            tokenIdList.add(currBox.getTokenId());
                         }
                         String type = currBox.getType();
                         if (typeCount.containsKey(type)) {
@@ -112,7 +112,7 @@ public class TokenApplicationState implements ApplicationState {
                         return false;
                     }
                     // Check that token ID is not already used
-                    if (! IDInfoDbService.validateId(IDInfoDbService.extractIdFromBox(box), Optional.empty())){
+                    if (! IDInfoDbService.validateId(IDInfoDbService.extractTokenIdFromBox(box), Optional.empty())){
                         log.warn("Error during transaction validation: The token ID already exists!");
                         return false;
                     }
@@ -159,7 +159,7 @@ public class TokenApplicationState implements ApplicationState {
                                                 List<Box<Proposition>> newBoxes, List<byte[]> boxIdsToRemove) {
         //We update the tokein id info database. The data from it will be used during validation.
         //collect the id to be added and the the count for each toketype
-        Set<String> idToAdd = IDInfoDbService.extractIdFromBoxes(newBoxes);
+        Set<String> idToAdd = IDInfoDbService.extractTokenIdFromBoxes(newBoxes);
         HashMap<String,Integer> typeToAdd = IDInfoDbService.extractTypeFromBoxes(newBoxes);
         IDInfoDbService.updateAll(version, idToAdd,typeToAdd);
         return new Success<>(this);

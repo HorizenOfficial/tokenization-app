@@ -50,8 +50,8 @@ public final class TokenBox extends AbstractNoncedBox<PublicKey25519Proposition,
     }
 
 
-    public String getID() {
-        return boxData.getID();
+    public String getTokenId() {
+        return boxData.getTokenId();
     }
 
     public String getType() {

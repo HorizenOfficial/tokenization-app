@@ -18,17 +18,17 @@ import java.util.Arrays;
 public final class TokenSellOrderBoxData extends AbstractNoncedBoxData<SellOrderProposition, TokenSellOrderBox, TokenSellOrderBoxData> {
 
     // Token sell order attributes is similar to token attributes.
-    private final String id;
+    private final String tokenId;
     private final String type;
 
-    public TokenSellOrderBoxData(SellOrderProposition proposition, long price, String id, String type) {
+    public TokenSellOrderBoxData(SellOrderProposition proposition, long price, String tokenId, String type) {
         super(proposition, price);
-        this.id = id;
+        this.tokenId = tokenId;
         this.type = type;
     }
 
-    public String getID() {
-        return id;
+    public String getTokenId() {
+        return tokenId;
     }
 
     public String getType() {
@@ -45,7 +45,7 @@ public final class TokenSellOrderBoxData extends AbstractNoncedBoxData<SellOrder
     public byte[] customFieldsHash() {
         return Blake2b256.hash(
                 Bytes.concat(
-                        id.getBytes(),
+                        tokenId.getBytes(),
                         type.getBytes()));
     }
 
@@ -65,8 +65,8 @@ public final class TokenSellOrderBoxData extends AbstractNoncedBoxData<SellOrder
                 Ints.toByteArray(proposition().bytes().length),
                 proposition().bytes(),
                 Longs.toByteArray(value()),
-                Ints.toByteArray(id.getBytes().length),
-                id.getBytes(),
+                Ints.toByteArray(tokenId.getBytes().length),
+                tokenId.getBytes(),
                 Ints.toByteArray(type.getBytes().length),
                 type.getBytes()
         );
@@ -88,7 +88,7 @@ public final class TokenSellOrderBoxData extends AbstractNoncedBoxData<SellOrder
         size = Ints.fromByteArray(Arrays.copyOfRange(bytes, offset, offset + Ints.BYTES));
         offset += Ints.BYTES;
 
-        String id = new String(Arrays.copyOfRange(bytes, offset, offset + size));
+        String tokenId = new String(Arrays.copyOfRange(bytes, offset, offset + size));
         offset += size;
 
         size = Ints.fromByteArray(Arrays.copyOfRange(bytes, offset, offset + Ints.BYTES));
@@ -96,13 +96,13 @@ public final class TokenSellOrderBoxData extends AbstractNoncedBoxData<SellOrder
 
         String type = new String(Arrays.copyOfRange(bytes, offset, offset + size));
 
-        return new TokenSellOrderBoxData(proposition, price, id, type);
+        return new TokenSellOrderBoxData(proposition, price, tokenId, type);
     }
 
     @Override
     public String toString() {
         return "TokenSellOrderBoxData{" +
-                "id=" + id +
+                "  tokenId=" + tokenId +
                 ", proposition=" + proposition() +
                 ", value=" + value() +
                 ", type=" + type +

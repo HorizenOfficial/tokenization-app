@@ -45,7 +45,7 @@ public final class TokenSellOrderInfo {
         return new TokenSellOrderBoxData(
                 new SellOrderProposition(tokenBoxToOpen.proposition().pubKeyBytes(), buyerProposition.pubKeyBytes()),
                 price,
-                tokenBoxToOpen.getID(),
+                tokenBoxToOpen.getTokenId(),
                 tokenBoxToOpen.getType()
         );
     }

@@ -24,19 +24,19 @@ import static io.horizen.tokenization.token.box.data.TokenBoxesDataIdsEnum.Token
  */
 public final class TokenBoxData extends AbstractNoncedBoxData<PublicKey25519Proposition, TokenBox, TokenBoxData> {
 
-    private final String id;   // unique token id
+    private final String tokenId;   // unique token id
     private final String type;
 
 
-    public TokenBoxData(PublicKey25519Proposition proposition, String id, String type) {
+    public TokenBoxData(PublicKey25519Proposition proposition, String tokenId, String type) {
         //AbstractNoncedBoxData requires value to be set in constructor. However, our token has no value in ZEN by default. So just set value to 0
         super(proposition, 0);
-        this.id = id;
+        this.tokenId = tokenId;
         this.type = type;
     }
 
-    public String getID() {
-        return id;
+    public String getTokenId() {
+        return tokenId;
     }
 
     public String getType() {
@@ -50,7 +50,7 @@ public final class TokenBoxData extends AbstractNoncedBoxData<PublicKey25519Prop
 
     @Override
     public byte[] customFieldsHash() {
-        return Blake2b256.hash(id.getBytes());
+        return Blake2b256.hash(tokenId.getBytes());
     }
 
     @Override
@@ -67,8 +67,8 @@ public final class TokenBoxData extends AbstractNoncedBoxData<PublicKey25519Prop
     public byte[] bytes() {
         return Bytes.concat(
                 proposition().bytes(),
-                Ints.toByteArray(id.getBytes().length),
-                id.getBytes(),
+                Ints.toByteArray(tokenId.getBytes().length),
+                tokenId.getBytes(),
                 Ints.toByteArray(type.getBytes().length),
                 type.getBytes()
         );
@@ -84,7 +84,7 @@ public final class TokenBoxData extends AbstractNoncedBoxData<PublicKey25519Prop
         int size = Ints.fromByteArray(Arrays.copyOfRange(bytes, offset, offset + Ints.BYTES));
         offset += Ints.BYTES;
 
-        String id = new String(Arrays.copyOfRange(bytes, offset, offset + size));
+        String tokenId = new String(Arrays.copyOfRange(bytes, offset, offset + size));
         offset += size;
 
         size = Ints.fromByteArray(Arrays.copyOfRange(bytes, offset, offset + Ints.BYTES));
@@ -92,13 +92,13 @@ public final class TokenBoxData extends AbstractNoncedBoxData<PublicKey25519Prop
 
         String type = new String(Arrays.copyOfRange(bytes, offset, offset + size));
 
-        return new TokenBoxData(proposition, id, type);
+        return new TokenBoxData(proposition, tokenId, type);
     }
 
     @Override
     public String toString() {
         return "TokenBoxData{" +
-                "id=" + id +" "+
+                "tokenId=" + tokenId +" "+
                 "type= "+type+
                 ", proposition=" + proposition() +
                 '}';

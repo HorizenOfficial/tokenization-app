@@ -45,7 +45,7 @@ public final class TokenBuyOrderInfo {
 
         return new TokenBoxData(
                 proposition,
-                tokenSellOrderBoxToOpen.getID(),
+                tokenSellOrderBoxToOpen.getTokenId(),
                 tokenSellOrderBoxToOpen.getType()
         );
     }

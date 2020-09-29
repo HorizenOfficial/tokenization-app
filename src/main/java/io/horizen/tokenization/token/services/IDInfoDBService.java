@@ -73,7 +73,7 @@ public class IDInfoDBService {
         //in the vin is not found, and the mempool was provided, we check also there
         if (memoryPool.isPresent()) {
             for (BoxTransaction<Proposition, Box<Proposition>> transaction : memoryPool.get().getTransactions()) {
-                Set<String> vinInMempool = extractIdFromBoxes(transaction.newBoxes());
+                Set<String> vinInMempool = extractTokenIdFromBoxes(transaction.newBoxes());
                 if (vinInMempool.contains(id)){
                     return false;
                 }
@@ -88,17 +88,17 @@ public class IDInfoDBService {
     }
 
     /**
-     * Extracts the list of vehicle identification numbers (vin) declared in the given box list.
-     * The vin could be present inside two type of boxes: CarBox and CarSellOrderBox
+     * Extracts the list of tokenId declared in the given box list.
+     * The tokeInd could be present inside two type of boxes: TokenBox and TokenSellOrderBox
      */
-    public Set<String> extractIdFromBoxes(List<Box<Proposition>> boxes){
+    public Set<String> extractTokenIdFromBoxes(List<Box<Proposition>> boxes){
         Set<String> idList = new HashSet<String>();
         for (Box<Proposition> currentBox : boxes) {
             if (TokenBox.class.isAssignableFrom(currentBox.getClass())){
-                String id  = TokenBox.parseBytes(currentBox.bytes()).getID();
+                String id  = TokenBox.parseBytes(currentBox.bytes()).getTokenId();
                 idList.add(id);
             } else if (TokenSellOrderBox.class.isAssignableFrom(currentBox.getClass())){
-                String id  = TokenSellOrderBox.parseBytes(currentBox.bytes()).getID();
+                String id  = TokenSellOrderBox.parseBytes(currentBox.bytes()).getTokenId();
                 idList.add(id);
             }
         }
@@ -121,12 +121,12 @@ public class IDInfoDBService {
         return typeList;
     }
 
-    public String extractIdFromBox(Box<Proposition> box) {
+    public String extractTokenIdFromBox(Box<Proposition> box) {
         String id = "";
         if (TokenBox.class.isAssignableFrom(box.getClass())){
-            id += TokenBox.parseBytes(box.bytes()).getID();
+            id += TokenBox.parseBytes(box.bytes()).getTokenId();
         } else if (TokenSellOrderBox.class.isAssignableFrom(box.getClass())){
-            id += TokenSellOrderBox.parseBytes(box.bytes()).getID();
+            id += TokenSellOrderBox.parseBytes(box.bytes()).getTokenId();
         }
         return id;
     }

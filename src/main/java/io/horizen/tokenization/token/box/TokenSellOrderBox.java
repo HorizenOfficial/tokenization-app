@@ -53,8 +53,8 @@ public final class TokenSellOrderBox extends AbstractNoncedBox<SellOrderProposit
 
     // Set sell order attributes getters, that is used to automatically construct JSON view:
 
-    public String getID() {
-        return boxData.getID();
+    public String getTokenId() {
+        return boxData.getTokenId();
     }
 
     public String getType() {
@@ -65,10 +65,5 @@ public final class TokenSellOrderBox extends AbstractNoncedBox<SellOrderProposit
         return value();
     }
 
-    public byte[] getTokenId() {
-        return Bytes.concat(
-                getID().getBytes(),
-                getType().getBytes()
-        );
-    }
+
 }

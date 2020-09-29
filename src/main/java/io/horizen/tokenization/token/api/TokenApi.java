@@ -317,7 +317,11 @@ public class TokenApi extends ApplicationApiGroup {
     private ApiResponse acceptTokenSellOrder(SidechainNodeView view, SpendTokenSellOrderRequest ent) {
         try {
             // Try to find CarSellOrder to be opened in the closed boxes list
-            TokenSellOrderBox tokenSellOrderBox = (TokenSellOrderBox)view.getNodeState().getClosedBox(BytesUtils.fromHexString(ent.tokenSellOrderId)).get();
+            Optional sellORder = view.getNodeState().getClosedBox(BytesUtils.fromHexString(ent.tokenSellOrderId));
+            if (!sellORder.isPresent()){
+                return new TokenResponseError("0101", "Sell order not found", Option.empty());
+            }
+            TokenSellOrderBox tokenSellOrderBox = (TokenSellOrderBox)sellORder.get();
 
             // Check that Car sell order buyer public key is controlled by node wallet.
             Optional<Secret> buyerSecretOption = view.getNodeWallet().secretByPublicKey(
