@@ -32,6 +32,7 @@ import io.horizen.tokenization.token.box.TokenBox;
 import io.horizen.tokenization.token.box.TokenSellOrderBox;
 import io.horizen.tokenization.token.box.data.TokenBoxData;
 import io.horizen.tokenization.token.info.TokenBuyOrderInfo;
+import io.horizen.tokenization.token.info.TokenCreateInfo;
 import io.horizen.tokenization.token.info.TokenSellOrderInfo;
 import io.horizen.tokenization.token.proof.SellOrderSpendingProof;
 import io.horizen.tokenization.token.services.IDInfoDBService;
@@ -62,6 +63,7 @@ public class TokenApi extends ApplicationApiGroup {
     private final SidechainTransactionsCompanion sidechainTransactionsCompanion;
     private IDInfoDBService IDInfoDBService;
     private ArrayList<String> creator;
+    private HashMap<String,Integer >maxTokenPerType;
 
     @Inject
     public TokenApi(@Named("SidechainTransactionsCompanion") SidechainTransactionsCompanion sidechainTransactionsCompanion, IDInfoDBService IDInfoDBService,
@@ -69,6 +71,7 @@ public class TokenApi extends ApplicationApiGroup {
         this.sidechainTransactionsCompanion = sidechainTransactionsCompanion;
         this.IDInfoDBService = IDInfoDBService;
         this.creator = (ArrayList<String>) config.getObject("token").get("creatorPropositions").unwrapped();
+        this.maxTokenPerType = (HashMap<String,Integer>) config.getObject("token").get("typeLimit").unwrapped();
     }
 
     // Define the base path for API url, i.e. according current config we could access that Api Group by using address 127.0.0.1:9085/carApi
@@ -111,11 +114,21 @@ public class TokenApi extends ApplicationApiGroup {
                 throw new IllegalStateException("This proposition is not allowed to create token!");
             }
 
+            // Check that the token type is correct
+            if (!this.maxTokenPerType.containsKey(ent.type)) {
+                throw new IllegalStateException("Token type not allowed");
+            }
+
+            // Check that the max number of tokens has not yet been reached
+            if(IDInfoDBService.getTypeCount(ent.type) + ent.numberOfTokens > this.maxTokenPerType.get(ent.type)) {
+                throw new IllegalStateException("Maximum number of tokens reached for this type");
+            }
+
+           // Check that the token ID is unique (both in local id store and in mempool).
            TokenBoxData[] tokenBoxData = new TokenBoxData[ent.numberOfTokens];
             for (int i = 0; i < ent.numberOfTokens; i++) {
                 byte[] hash = Blake2b256.hash(Bytes.concat(Longs.toByteArray(new Date().getTime()),Ints.toByteArray(i)));
                 String id = this.createTokenID(BytesUtils.getLong(hash, 0));
-                // Check that the token ID is unique (both in local veichle store and in mempool).
                 if (! IDInfoDBService.validateId(id, Optional.of(view.getNodeMemoryPool()))){
                     throw new IllegalStateException("Token id already present in blockchain");
                 }
@@ -164,11 +177,14 @@ public class TokenApi extends ApplicationApiGroup {
             List fakeProofs = Collections.nCopies(inputIds.size(), null);
             Long timestamp = System.currentTimeMillis();
 
+            TokenCreateInfo fakeTokenCreateInfo = new TokenCreateInfo(new byte[0]);
+
             CreateTokensTransaction unsignedTransaction = new CreateTokensTransaction(
                     inputIds,
                     fakeProofs,
                     regularOutputs,
                     tokenBoxData,
+                    fakeTokenCreateInfo,
                     ent.fee,
                     timestamp);
 
@@ -181,12 +197,19 @@ public class TokenApi extends ApplicationApiGroup {
                 proofs.add((Signature25519) view.getNodeWallet().secretByPublicKey(box.proposition()).get().sign(messageToSign));
             }
 
+
+            PublicKey25519Proposition creatorProposition = PublicKey25519PropositionSerializer.getSerializer()
+                    .parseBytes(BytesUtils.fromHexString((ent.proposition)));
+            byte[] creatorSignature = (view.getNodeWallet().secretByPublicKey(creatorProposition).get().sign(messageToSign).bytes());
+            TokenCreateInfo tokenCreateInfo = new TokenCreateInfo(creatorSignature);
+
             // Create the transaction with real proofs.
             CreateTokensTransaction signedTransaction = new CreateTokensTransaction(
                     inputIds,
                     proofs,
                     regularOutputs,
                     tokenBoxData,
+                    tokenCreateInfo,
                     ent.fee,
                     timestamp);
 
@@ -199,7 +222,7 @@ public class TokenApi extends ApplicationApiGroup {
 
     private ApiResponse createTokenSellOrder(SidechainNodeView view, CreateTokenSellOrderRequest ent) {
         try {
-            // Try to find CarBox to be opened in the closed boxes list
+            // Try to find TokenBox to be opened in the closed boxes list
             TokenBox tokenBox = null;
 
             for (Box b : view.getNodeWallet().boxesOfType(TokenBox.class)) {

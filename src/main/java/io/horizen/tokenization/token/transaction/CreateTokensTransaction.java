@@ -12,6 +12,7 @@ import com.horizen.transaction.TransactionSerializer;
 import com.horizen.utils.BytesUtils;
 import io.horizen.tokenization.token.box.data.TokenBoxData;
 import io.horizen.tokenization.token.box.data.TokenBoxDataSerializer;
+import io.horizen.tokenization.token.info.TokenCreateInfo;
 import scorex.core.NodeViewModifier$;
 
 import java.io.ByteArrayOutputStream;
@@ -29,6 +30,7 @@ import static io.horizen.tokenization.token.transaction.TokenTransactionsIdsEnum
 // No specific unlockers to parent class logic, but has specific new box.
 public final class CreateTokensTransaction extends AbstractRegularTransaction {
 
+    private TokenCreateInfo tokenCreateInfo;
     private final TokenBoxData[] outputTokenBoxData;
     private List<NoncedBox<Proposition>> newBoxes;
 
@@ -36,10 +38,12 @@ public final class CreateTokensTransaction extends AbstractRegularTransaction {
                                    List<Signature25519> inputRegularBoxProofs,
                                    List<RegularBoxData> outputRegularBoxesData,
                                    TokenBoxData[] outputTokenBoxData,
+                                   TokenCreateInfo tokenCreateInfo,
                                    long fee,
                                    long timestamp) {
         super(inputRegularBoxIds, inputRegularBoxProofs, outputRegularBoxesData, fee, timestamp);
         this.outputTokenBoxData = outputTokenBoxData;
+        this.tokenCreateInfo = tokenCreateInfo;
     }
 
     // Specify the unique custom transaction id.
@@ -76,6 +80,8 @@ public final class CreateTokensTransaction extends AbstractRegularTransaction {
             outputTokenStream.write(token.bytes(), 0, token.bytes().length);
         }
 
+        byte[] tokenCreateInfoBtes = tokenCreateInfo.bytes();
+
         byte[] inputRegularBoxIdsBytes = inputsIdsStream.toByteArray();
 
         byte[] inputRegularBoxProofsBytes = regularBoxProofsSerializer.toBytes(inputRegularBoxProofs);
@@ -87,6 +93,8 @@ public final class CreateTokensTransaction extends AbstractRegularTransaction {
         return Bytes.concat(
                 Longs.toByteArray(fee()),                               // 8 bytes
                 Longs.toByteArray(timestamp()),                         // 8 bytes
+                Ints.toByteArray(tokenCreateInfoBtes.length),
+                tokenCreateInfoBtes,
                 Ints.toByteArray(inputRegularBoxIdsBytes.length),       // 4 bytes
                 inputRegularBoxIdsBytes,                                // depends on previous value (>=4 bytes)
                 Ints.toByteArray(inputRegularBoxProofsBytes.length),    // 4 bytes
@@ -107,6 +115,12 @@ public final class CreateTokensTransaction extends AbstractRegularTransaction {
 
         long timestamp = BytesUtils.getLong(bytes, offset);
         offset += 8;
+
+        int tokenCreateInfoSize = BytesUtils.getInt(bytes, offset);
+        offset += 4;
+        TokenCreateInfo tokenCreateInfo =  TokenCreateInfo.parseBytes(Arrays.copyOfRange(bytes, offset, offset+tokenCreateInfoSize));
+
+        offset += tokenCreateInfoSize;
 
         int batchSize = BytesUtils.getInt(bytes, offset);
         offset += 4;
@@ -143,7 +157,11 @@ public final class CreateTokensTransaction extends AbstractRegularTransaction {
             offset += size;
         }
 
-        return new CreateTokensTransaction(inputRegularBoxIds, inputRegularBoxProofs, outputRegularBoxesData, outputBoxData, fee, timestamp);
+        return new CreateTokensTransaction(inputRegularBoxIds, inputRegularBoxProofs, outputRegularBoxesData, outputBoxData, tokenCreateInfo, fee, timestamp);
+    }
+
+    public byte[] getCreatorSignature() {
+        return tokenCreateInfo.getCreatorSignature();
     }
 
     // Set specific Serializer for CarDeclarationTransaction class.

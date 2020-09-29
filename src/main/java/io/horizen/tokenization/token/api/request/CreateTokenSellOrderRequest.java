@@ -1,6 +1,8 @@
 package io.horizen.tokenization.token.api.request;
 
-// '.../carApi/acceptCarSellOrder' and '.../carApi/cancelCarSellOrder'  HTTP Post requests body representing class.
+/**
+ * '/tokenApi/createTokenSellOrder' requests body representing class.
+ */
 public class CreateTokenSellOrderRequest {
     public String tokenBoxId; // hex representation of box id
     public String buyerProposition; // hex representation of public key proposition
