@@ -22,7 +22,8 @@ import com.typesafe.config.Config;
 
 /**
  * This service manages a local db with the list of all token IDS declared on the chain.
- * The vin could be present inside two type of boxes: CarBox and CarSellOrderBox.
+ * The tokenId could be present inside two type of boxes: TokenBox and TokenSellOrderBox.
+ * For each type the service stores also a counter of all tokens forged of that type.
  */
 public class IDInfoDBService {
 
@@ -35,17 +36,17 @@ public class IDInfoDBService {
         log.debug("TokenInfoStorage now contains: "+ IDInfoStorage.getAll().size()+" elements");
     }
 
-    public void updateAll(byte[] version, Set<String> idToAdd, HashMap<String, Integer> typeToAdd){
+    public void updateAll(byte[] version, Set<String> idToAdd, Map<String, Integer> forgedCounters){
         log.debug("TokenInfoStorage updateID");
-        List<Pair<ByteArrayWrapper, ByteArrayWrapper>> toUpdate = new ArrayList<>(idToAdd.size()+typeToAdd.size());
+        List<Pair<ByteArrayWrapper, ByteArrayWrapper>> toUpdate = new ArrayList<>(idToAdd.size()+forgedCounters.size());
         idToAdd.forEach(ele -> {
             toUpdate.add(buildDBElement(ele));
         });
 
         log.debug("TokenInfoStorage updateTypeCount");
-        typeToAdd.keySet().forEach(ele -> {
+        forgedCounters.keySet().forEach(ele -> {
             int count = getTypeCount(ele);
-            toUpdate.add(buildDBCountingElement(ele,typeToAdd.get(ele)+count));
+            toUpdate.add(buildDBCountingElement(ele,forgedCounters.get(ele)+count));
         });
         IDInfoStorage.update(new ByteArrayWrapper(version), toUpdate, new ArrayList<>());
 
@@ -106,22 +107,6 @@ public class IDInfoDBService {
             }
         }
         return idList;
-    }
-
-    public HashMap<String, Integer> extractTypeFromBoxes(List<Box<Proposition>> boxes){
-        HashMap<String, Integer> typeList = new HashMap<String, Integer>();
-        for (Box<Proposition> currentBox : boxes) {
-            if (TokenBox.class.isAssignableFrom(currentBox.getClass())){
-                String type  = TokenBox.parseBytes(currentBox.bytes()).getType();
-                if (typeList.containsKey(type)) {
-                    typeList.put(type, typeList.get(type)+1);
-                }
-                else {
-                    typeList.put(type,1);
-                }
-            }
-        }
-        return typeList;
     }
 
 

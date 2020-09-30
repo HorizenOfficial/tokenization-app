@@ -91,6 +91,7 @@ public class TokenApi extends ApplicationApiGroup {
         routes.add(bindPostRequest("createTokenSellOrder", this::createTokenSellOrder, CreateTokenSellOrderRequest.class));
         routes.add(bindPostRequest("acceptTokenSellOrder", this::acceptTokenSellOrder, SpendTokenSellOrderRequest.class));
         routes.add(bindPostRequest("cancelTokenSellOrder", this::cancelTokenSellOrder, SpendTokenSellOrderRequest.class));
+        routes.add(bindPostRequest("supply", this::supply));
         return routes;
     }
 
@@ -100,6 +101,17 @@ public class TokenApi extends ApplicationApiGroup {
         int n = 10-idToString.length();
         String tokenID = IntStream.range(0, n).mapToObj(i -> "0").collect(Collectors.joining(""));
         return tokenID + idToString;
+    }
+
+    private ApiResponse supply(SidechainNodeView view) {
+        SupplyItem[] items = new SupplyItem[this.maxTokenPerType.keySet().size()];
+        int index = 0;
+        for (String tokenType: this.maxTokenPerType.keySet()){
+            int typeCount = IDInfoDBService.getTypeCount(tokenType);
+            items[index] = new SupplyItem(tokenType, typeCount, this.maxTokenPerType.get(tokenType));
+            index++;
+        }
+        return new SupplyResponse(items);
     }
 
     private ApiResponse createTokens(SidechainNodeView view, CreateTokensRequest ent) {
@@ -514,6 +526,43 @@ public class TokenApi extends ApplicationApiGroup {
 
     // The CarApi requests success result output structure.
     @JsonView(Views.Default.class)
+    static class SupplyResponse implements SuccessResponse {
+        public SupplyItem[] supply;
+
+        public SupplyResponse(SupplyItem[] supply) {
+            this.supply = supply;
+        }
+        
+        public SupplyItem[] getSupply(){
+            return supply;
+        }
+    }
+    @JsonView(Views.Default.class)
+    static class SupplyItem {
+        public String tokenType;
+        public int forged;
+        public int maxSupply;
+
+        public SupplyItem(String tokenType, int forged, int maxSupply) {
+            this.tokenType = tokenType;
+            this.maxSupply = maxSupply;
+            this.forged = forged;
+        }
+
+        public String getTokenType(){
+            return tokenType;
+        }
+
+        public int getForged() {
+            return forged;
+        }
+        public int getMaxSupply() {
+            return maxSupply;
+        }
+    }
+
+    // The CarApi requests success result output structure.
+    @JsonView(Views.Default.class)
     static class TxResponse implements SuccessResponse {
         public String transactionBytes;
 
@@ -521,6 +570,7 @@ public class TokenApi extends ApplicationApiGroup {
             this.transactionBytes = transactionBytes;
         }
     }
+
 
     // The CarApi requests error result output structure.
     static class TokenResponseError implements ErrorResponse {

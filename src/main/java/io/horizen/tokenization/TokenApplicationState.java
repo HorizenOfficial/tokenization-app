@@ -13,6 +13,7 @@ import com.horizen.state.SidechainStateReader;
 import com.horizen.transaction.BoxTransaction;
 import com.horizen.utils.BytesUtils;
 import io.horizen.tokenization.token.box.TokenBox;
+import io.horizen.tokenization.token.box.TokenSellOrderBox;
 import io.horizen.tokenization.token.services.IDInfoDBService;
 import io.horizen.tokenization.token.transaction.CreateTokensTransaction;
 import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
@@ -157,11 +158,32 @@ public class TokenApplicationState implements ApplicationState {
     public Try<ApplicationState> onApplyChanges(SidechainStateReader stateReader,
                                                 byte[] version,
                                                 List<Box<Proposition>> newBoxes, List<byte[]> boxIdsToRemove) {
-        //We update the tokein id info database. The data from it will be used during validation.
-        //collect the id to be added and the the count for each toketype
-        Set<String> idToAdd = IDInfoDbService.extractTokenIdFromBoxes(newBoxes);
-        HashMap<String,Integer> typeToAdd = IDInfoDbService.extractTypeFromBoxes(newBoxes);
-        IDInfoDbService.updateAll(version, idToAdd,typeToAdd);
+        //We update the tokein id info database (the data from it will be used during validation) and
+        //the counter of new forged tokens for each type (the data from it will be used for the tokenApi/supply endpoint)
+        Set<String> idList = new HashSet<String>();
+        Map<String, Integer> forgedCounters = new HashMap();
+        for (String tokenType: this.maxTokenPerType.keySet()){
+            forgedCounters.put(tokenType, 0);
+        }
+        for (Box<Proposition> currentBox : newBoxes) {
+            if (TokenBox.class.isAssignableFrom(currentBox.getClass())){
+                TokenBox currTBox = TokenBox.parseBytes(currentBox.bytes());
+                String id  = currTBox.getTokenId();
+                String type = currTBox.getType();
+                if ((IDInfoDbService.validateId(id, Optional.empty()))){
+                    //if the id is validated was not present on the DB, so the token has been just forged: we increase the forgedCount
+                    forgedCounters.put(type, forgedCounters.get(type) + 1);
+                }
+                idList.add(id);
+            } else if (TokenSellOrderBox.class.isAssignableFrom(currentBox.getClass())){
+                TokenSellOrderBox sellOrderBox = TokenSellOrderBox.parseBytes(currentBox.bytes());
+                for (int i = 0; i < sellOrderBox.getBoxData().getOrderItemLenght(); i++){
+                    String id  =  sellOrderBox.getBoxData().getOrderItem(i).getTokenId();
+                    idList.add(id);
+                }
+            }
+        }
+        IDInfoDbService.updateAll(version, idList, forgedCounters);
         return new Success<>(this);
     }
 
