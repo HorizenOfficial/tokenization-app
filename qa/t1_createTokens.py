@@ -5,6 +5,7 @@ from test_framework.util import assert_equal, assert_true, assert_false, fail, f
 from httpCalls.transaction.sendCoinsToAddress import sendCoinsToAddress
 from httpCalls.transaction.findTransactionByID import http_transaction_findById
 from httpCalls.tokenApi.createTokens import createTokens
+from httpCalls.tokenApi.supply import supply
 from httpCalls.block.best import http_block_best
 from httpCalls.block.findBlockByID import http_block_findById
 from httpCalls.wallet.allBoxes import http_wallet_allBoxes
@@ -12,6 +13,7 @@ from httpCalls.wallet.balance import http_wallet_balance
 from httpCalls.wallet.createPrivateKey25519 import  http_wallet_createPrivateKey25519
 from utils.searchBoxListByAttributes import searchBoxListByAttributes
 from utils.searchTransactionInBlock import searchTransactionInBlock
+from utils.searchSupply import searchSupply
 from basicTest import BasicTest
 from resources.testdata import BOXTYPE_STANDARD, BOXTYPE_CUSTOM
 
@@ -64,6 +66,11 @@ class CreateTokensTest(BasicTest):
         publiKeyNode1 = http_wallet_createPrivateKey25519(sc_node1)
         print("PUBKEY \n"+publiKeyNode1)
 
+        #check the initial token supply is 0
+        supplyResponse = supply(sc_node1)
+        assert_true(searchSupply(supplyResponse, self.ABC_TYPE) == 0)
+        assert_true(searchSupply(supplyResponse, self.CDE_TYPE) == 0)
+
         #try create 2 new tokens
         print("########## try create 2 new tokens ######### ")
         (success, transactionid) = createTokens(sc_node1, self.ABC_TYPE, 2, publiKeyNode1, 1000)
@@ -71,6 +78,11 @@ class CreateTokensTest(BasicTest):
         self.sc_sync_all()
         self.generateOneBlock(sc_node1)
         self.sc_sync_all()
+
+        #check the token supply endpoint is updated
+        supplyResponse = supply(sc_node1)
+        assert_true(searchSupply(supplyResponse, self.ABC_TYPE) == 2)
+        assert_true(searchSupply(supplyResponse, self.CDE_TYPE) == 0)
 
         #check that the created tokens are present inside the wallet
         boxes = http_wallet_allBoxes(sc_node1)
@@ -137,6 +149,11 @@ class CreateTokensTest(BasicTest):
         assert_false(success)
         self.sc_sync_all()
         print("..... OK")
+
+        #check the token supply endpoint is updated
+        supplyResponse = supply(sc_node1)
+        assert_true(searchSupply(supplyResponse, self.ABC_TYPE) == 4)
+        assert_true(searchSupply(supplyResponse, self.CDE_TYPE) == 5)
 
 
 if __name__ == "__main__":
