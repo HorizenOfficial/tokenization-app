@@ -9,6 +9,17 @@ from test_framework.util import assert_true, initialize_chain_clean, start_nodes
     websocket_port_by_mc_node_index, connect_nodes_bi, disconnect_nodes_bi
 from SidechainTestFramework.scutil import bootstrap_sidechain_nodes, start_sc_nodes, generate_next_blocks, connect_sc_nodes, initialize_default_sc_chain_clean
 from SidechainTestFramework.sc_forging_util import *
+#!/usr/bin/env python2
+import sys
+import os
+sys.path.append(os.getenv("SIDECHAIN_SDK", "") + '/qa/')
+from SidechainTestFramework.sc_test_framework import SidechainTestFramework
+from SidechainTestFramework.sc_boostrap_info import SCNodeConfiguration, SCCreationInfo, MCConnectionInfo, \
+    SCNetworkConfiguration
+from test_framework.util import assert_true, initialize_chain_clean, start_nodes, \
+    websocket_port_by_mc_node_index, connect_nodes_bi, disconnect_nodes_bi
+from SidechainTestFramework.scutil import bootstrap_sidechain_nodes, start_sc_nodes, generate_next_blocks, connect_sc_nodes, initialize_default_sc_chain_clean
+from SidechainTestFramework.sc_forging_util import *
 from httpCalls.transaction.spendForgingStake import spendForgingStake
 
 """
@@ -57,7 +68,7 @@ class BasicTest(SidechainTestFramework):
                 )
             )
         network = SCNetworkConfiguration(SCCreationInfo(mc_node_1, 600, 1000), *sc_node_configuration)
-        bootstrap_sidechain_nodes(self.options.tmpdir, network)
+        self.sc_nodes_bootstrap_info = bootstrap_sidechain_nodes(self.options.tmpdir, network)
 
 
 

@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append(os.getenv("SIDECHAIN_SDK", "") + '/qa/')
-from test_framework.util import assert_equal, assert_true, assert_false, fail
+from test_framework.util import assert_equal, assert_true, assert_false, fail, forward_transfer_to_sidechain
 from httpCalls.transaction.sendCoinsToAddress import sendCoinsToAddress
 from httpCalls.transaction.findTransactionByID import http_transaction_findById
 from httpCalls.tokenApi.createTokens import createTokens
@@ -19,17 +19,21 @@ from basicTest import BasicTest
 from resources.testdata import BOXTYPE_STANDARD, BOXTYPE_CUSTOM
 
 """
-This test checks a standard workflow: creating a car and selling it to another wallet
+This test checks a standard workflow: creating a tokens and selling them to another wallet
 
 Network Configuration:
     1 MC nodes and 2 SC nodes
 
 Workflow modelled in this test:
-    SCNode1: spendForgingStake
-    SCNode1: createCar
+    McNode: send some money to SCNode1 (forward transfer)
+    SCNode1: createToken
     SCNode2: createPrivateKey25519  of UserB (buyer)
-    SCNode1: createCarSellOrder to the UserB
-    SCNode2: acceptCarSellOrder
+    SCNode1: createTokenSellOrder to the UserB
+    SCNode2: acceptTokenSellOrder
+        check that the token now is owned by UserB
+    SCNode2: createTokenSellOrder to the UserA
+    SCNode1: cancelTokenSellOrder 
+        check that the token is still owned by UserB
 """
 class SellAndBuyTokensTest(BasicTest):
     ABC_TYPE = "ABC"
@@ -41,23 +45,24 @@ class SellAndBuyTokensTest(BasicTest):
 
     def run_test(self):
         print "Starting test"
+        mc_node = self.nodes[0]
         sc_node1 = self.sc_nodes[0]
         sc_node2 = self.sc_nodes[1]
+        publicKeySeller = self.sc_nodes_bootstrap_info.genesis_account.publicKey
         self.sc_sync_all()
 
-        #convert initial forging amount to standard coinbox and returns the public key owning it and the amount
-        (publicKey, convertedForgingStakeValue) = self.convertInitialForging()
+        #we need regular coins (the genesis account balance is locked into forging stake), so we perform a
+        #forward transfer to sidechain for an amount equals to the genesis_account_balance
+        forward_transfer_to_sidechain(self.sc_nodes_bootstrap_info.sidechain_id,
+                                      mc_node,
+                                      publicKeySeller,
+                                      self.sc_nodes_bootstrap_info.genesis_account_balance)
         self.sc_sync_all()
-        print(str(self.generateOneBlock(sc_node1)))
+        self.generateOneBlock(sc_node1)
         self.sc_sync_all()
 
-        #check that the stadard coinbox is present inside the wallet
-        boxes = http_wallet_allBoxes(sc_node1)
-        (searchBoxFound, boxId)  = searchBoxListByAttributes(boxes,
-                                               'typeId', BOXTYPE_STANDARD.REGULAR,
-                                               'value', convertedForgingStakeValue,
-                                               )
-        assert_true(searchBoxFound)
+        #check that the wallet balance is doubled now (forging stake + the forward transfer) (we need to convert to zentoshi also)
+        assert_equal(http_wallet_balance(sc_node1),  (self.sc_nodes_bootstrap_info.genesis_account_balance * 2) * 100000000)
 
         #gnerate the publicKey able to create tokens
         publicKeyNode1 = http_wallet_createPrivateKey25519(sc_node1)
@@ -95,7 +100,7 @@ class SellAndBuyTokensTest(BasicTest):
         #check the user on sidechain node2 has received the money
         assert_equal(http_wallet_balance(sc_node2), 50000000)
 
-        orderTxId = createTokenSellOrder(sc_node1, tokenBoxId, publicKeyNode2, 10000000, 1000)
+        orderTxId = createTokenSellOrder(sc_node1, [tokenBoxId], publicKeyNode2, 10000000, 1000)
         self.sc_sync_all()
         self.generateOneBlock(sc_node1)
         self.sc_sync_all()
@@ -107,8 +112,7 @@ class SellAndBuyTokensTest(BasicTest):
 
         #check that the sell order was created correctly
         (searchBoxFound, sellOrderBoxId) = searchBoxListByAttributes(foundTx['newBoxes'],
-                    'typeId', BOXTYPE_CUSTOM.SELL_ORDER,
-                    'type', self.ABC_TYPE,
+                    'typeId', BOXTYPE_CUSTOM.SELL_ORDER
                     )
         assert_true(searchBoxFound)
 
@@ -122,10 +126,10 @@ class SellAndBuyTokensTest(BasicTest):
         self.generateOneBlock(sc_node1)
         self.sc_sync_all()
 
-        #check the user on sidechain node2 has spent money for the car
+        #check the user on sidechain node2 has spent money for the order
         assert_equal(http_wallet_balance(sc_node2), 50000000-10000000-1000)
 
-        #user on sidechain node 2 now should own the car
+        #user on sidechain node 2 now should own the token
         boxes = http_wallet_allBoxes(sc_node2)
         (searchBoxFound, boughtBoxId)  = searchBoxListByAttributes(boxes,
                                                 'typeId', BOXTYPE_CUSTOM.TOKEN,
@@ -146,7 +150,7 @@ class SellAndBuyTokensTest(BasicTest):
         #User on sidechain node 2 resell the token
         print("########## User on sidechain node 2 resell the token ######### ")
         print("BOXID: "+boughtBoxId)
-        orderTxId = createTokenSellOrder(sc_node2, boughtBoxId, publicKeyNode1, 10000000, 1000)
+        orderTxId = createTokenSellOrder(sc_node2, [boughtBoxId], publicKeyNode1, 10000000, 1000)
         self.sc_sync_all()
         self.generateOneBlock(sc_node1)
         self.sc_sync_all()
@@ -158,8 +162,7 @@ class SellAndBuyTokensTest(BasicTest):
 
         #check that the sell order was created correctly
         (searchBoxFound, sellOrderBoxId) = searchBoxListByAttributes(foundTx['newBoxes'],
-                    'typeId', BOXTYPE_CUSTOM.SELL_ORDER,
-                    'type', self.ABC_TYPE,
+                    'typeId', BOXTYPE_CUSTOM.SELL_ORDER
                     )
         assert_true(searchBoxFound)
 
@@ -171,7 +174,7 @@ class SellAndBuyTokensTest(BasicTest):
         self.generateOneBlock(sc_node1)
         self.sc_sync_all()
 
-        #user on sidechain node 2 now should own the car
+        #user on sidechain node 2 now should own the token
         boxes = http_wallet_allBoxes(sc_node2)
         (searchBoxFound, boughtBoxId)  = searchBoxListByAttributes(boxes,
                                                 'typeId', BOXTYPE_CUSTOM.TOKEN,
@@ -179,7 +182,7 @@ class SellAndBuyTokensTest(BasicTest):
                                                 )
         assert_true(searchBoxFound)
 
-        #user on sidechain node 1 (the seller) shold not own the token anymore
+        #user on sidechain node 1 (the seller) shold not own the token
         boxes = http_wallet_allBoxes(sc_node1)
         (searchBoxFound, boughtBoxId)  = searchBoxListByAttributes(boxes,
                                               'typeId',  BOXTYPE_CUSTOM.TOKEN,

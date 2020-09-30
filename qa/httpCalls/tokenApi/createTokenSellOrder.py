@@ -1,9 +1,9 @@
 import json
 
 #create and send a custom transaction tokenApi/createTokenSellOrder
-def createTokenSellOrder(sidechainNode, tokenBoxId, buyerProposition, sellPrice, fee):
+def createTokenSellOrder(sidechainNode, tokenBoxArray, buyerProposition, sellPrice, fee):
       j = {\
-           "tokenBoxId": tokenBoxId,\
+           "tokenBoxIds": tokenBoxArray,\
            "buyerProposition": buyerProposition,\
            "sellPrice": sellPrice,\
            "fee": fee \
@@ -26,5 +26,3 @@ def createTokenSellOrder(sidechainNode, tokenBoxId, buyerProposition, sellPrice,
                 return (False, None)
           else:
                 return response["result"]["transactionId"]
-
-

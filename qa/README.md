@@ -28,18 +28,18 @@ python run_all.py
 Or run individual test using command like this:
 
 ```
-python lambo_test1_standardWorkflow.py
+python t1_createTokens.py
 ```
 
 Example for Linux environment:
 
 ```
-export BITCOINCLI=/var/horizen/lamboRegistry/zend_oo/src/zen-cli
-export BITCOIND=/var/horizen/lamboRegistry/zend_oo/src/zend
-export SIDECHAIN_SDK=/var/horizen/lamboRegistry/Sidechains-SDK
-export APP_JAR=/var/horizen/lamboRegistry/lambo-registry/target/lambo-registry-0.1.0.jar
-export APP_LIB=/var/horizen/lamboRegistry/lambo-registry/target/lib/*
-export APP_MAIN=io.horizen.lambo.CarRegistryApp
+export BITCOINCLI=/var/horizen/sidechains/zend_oo/src/zen-cli
+export BITCOIND=/var/horizen/sidechains/zend_oo/src/zend
+export SIDECHAIN_SDK=/var/horizen/sidechains/Sidechains-SDK
+export APP_JAR=/var/horizen/sidechains/app/tokenization/tokenization-app/target/tokenization-app-0.1.0.jar
+export APP_LIB=/var/horizen/sidechains/app/tokenization/tokenization-app/target/lib/*
+export APP_MAIN=io.horizen.tokenization.TokenApp
 
 python  run_all.py --tmpdir=./_tmp
 ```

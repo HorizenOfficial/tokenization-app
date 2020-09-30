@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append(os.getenv("SIDECHAIN_SDK", "") + '/qa/')
-from test_framework.util import assert_equal, assert_true, assert_false, fail
+from test_framework.util import assert_equal, assert_true, assert_false, fail, forward_transfer_to_sidechain
 from httpCalls.transaction.sendCoinsToAddress import sendCoinsToAddress
 from httpCalls.transaction.findTransactionByID import http_transaction_findById
 from httpCalls.tokenApi.createTokens import createTokens
@@ -22,7 +22,7 @@ Network Configuration:
     1 MC nodes and 1 SC node
 
 Workflow modelled in this test:
-    SCNode1: spendForgingStake
+    McNode: send some money to SCNode1 (forward transfer)
     SCNode1: creat ABC tokens
     SCNode1: try create ABC tokens with non-authorized public key
     SCNode1: try create more ABC tokens than the max_limit
@@ -41,22 +41,24 @@ class CreateTokensTest(BasicTest):
 
     def run_test(self):
         print "Starting test"
+        mc_node = self.nodes[0]
         sc_node1 = self.sc_nodes[0]
+        publicKeySeller = self.sc_nodes_bootstrap_info.genesis_account.publicKey
         self.sc_sync_all()
 
-        #convert initial forging amount to standard coinbox and returns the public key owning it and the amount
-        (publicKey, convertedForgingStakeValue) = self.convertInitialForging()
+        #we need regular coins (the genesis account balance is locked into forging stake), so we perform a
+        #forward transfer to sidechain for an amount equals to the genesis_account_balance
+        forward_transfer_to_sidechain(self.sc_nodes_bootstrap_info.sidechain_id,
+                                      mc_node,
+                                      publicKeySeller,
+                                      self.sc_nodes_bootstrap_info.genesis_account_balance)
         self.sc_sync_all()
-        print(str(self.generateOneBlock(sc_node1)))
+        self.generateOneBlock(sc_node1)
         self.sc_sync_all()
 
-        #check that the stadard coinbox is present inside the wallet
-        boxes = http_wallet_allBoxes(sc_node1)
-        (searchBoxFound, boxId)  = searchBoxListByAttributes(boxes,
-                                               'typeId', BOXTYPE_STANDARD.REGULAR,
-                                               'value', convertedForgingStakeValue,
-                                               )
-        assert_true(searchBoxFound)
+
+        #check that the wallet balance is doubled now (forging stake + the forward transfer) (we need to convert to zentoshi also)
+        assert_equal(http_wallet_balance(sc_node1),  (self.sc_nodes_bootstrap_info.genesis_account_balance * 2) * 100000000)
 
         #gnerate the publicKey able to create tokens
         publiKeyNode1 = http_wallet_createPrivateKey25519(sc_node1)
