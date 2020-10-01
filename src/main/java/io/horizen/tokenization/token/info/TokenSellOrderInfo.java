@@ -17,13 +17,13 @@ import com.horizen.utils.BytesUtils;
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 
-// CarBuyOrderInfo contains the minimal set of data needed to construct SellCarTransaction specific inputs an outputs.
+// TokenSellOrderInfo contains the minimal set of data needed to construct SellTokenTransaction specific inputs an outputs.
 public final class TokenSellOrderInfo {
 
     private final TokenBox[] tokenBoxesToOpen;    // token boxes sold in this sell order
-    private final Signature25519[] proofs;   // Proof to unlock the box above
-    private final long price;             // The Car price specified by the owner
-    private final PublicKey25519Proposition buyerProposition; // The potential buyer of the car.
+    private final Signature25519[] proofs;   // Proof to unlock the boxes above
+    private final long price;             // The overall order price specified by the owner
+    private final PublicKey25519Proposition buyerProposition; // The potential buyer
 
     public TokenSellOrderInfo(TokenBox[] tokenBoxesToOpen, Signature25519[] proofs, long price, PublicKey25519Proposition buyerProposition) {
         this.tokenBoxesToOpen = tokenBoxesToOpen;

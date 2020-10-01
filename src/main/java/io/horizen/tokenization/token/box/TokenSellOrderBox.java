@@ -13,9 +13,8 @@ import com.horizen.serialization.Views;
 
 import java.util.Arrays;
 
-// Declare default JSON view for CarSellOrderBox object. Will automatically collect all getters except ignored ones.
 @JsonView(Views.Default.class)
-@JsonIgnoreProperties({"boxData", "carId"})
+@JsonIgnoreProperties({"boxData"})
 public final class TokenSellOrderBox extends AbstractNoncedBox<SellOrderProposition, TokenSellOrderBoxData, TokenSellOrderBox> {
 
     public TokenSellOrderBox(TokenSellOrderBoxData boxData, long nonce) {

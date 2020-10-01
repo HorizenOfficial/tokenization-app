@@ -164,7 +164,7 @@ public final class CreateTokensTransaction extends AbstractRegularTransaction {
         return tokenCreateInfo.getCreatorSignature();
     }
 
-    // Set specific Serializer for CarDeclarationTransaction class.
+    // Set specific Serializer for this transaction
     @Override
     public TransactionSerializer serializer() {
         return CreateTokensTransactionSerializer.getSerializer();

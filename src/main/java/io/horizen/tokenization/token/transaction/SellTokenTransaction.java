@@ -29,11 +29,7 @@ import static io.horizen.tokenization.token.transaction.TokenTransactionsIdsEnum
 // As unlockers it contains RegularBoxes and TokenBox to open.
 public final class SellTokenTransaction extends AbstractRegularTransaction {
 
-    // TokenSellOrderInfo is a view that describes what car box to open and what is the sell order(car attributes, price and buyer info).
-    // But inside it contains just a minimum set of info (like TokenBox itself and price) that is the unique source of data.
-    // So, no one outside controls what will be the specific outputs of this transaction.
-    // Any malicious actions will lead to transaction invalidation.
-    // For example, if TokenBox was opened, the TokenSellOrder obliged to contains the same token attributes and owner info.
+    // TokenSellOrderInfo is a view that describes all the attributes of this sell order (tokens to sell, price, and buyer info)
     private final TokenSellOrderInfo tokenSellOrderInfo;
 
     private List<NoncedBox<Proposition>> newBoxes;

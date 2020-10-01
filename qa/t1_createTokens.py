@@ -86,7 +86,7 @@ class CreateTokensTest(BasicTest):
 
         #check that the created tokens are present inside the wallet
         boxes = http_wallet_allBoxes(sc_node1)
-        (searchBoxFound, carBoxId) = searchBoxListByAttributes(boxes,
+        (searchBoxFound, foundBoxId) = searchBoxListByAttributes(boxes,
                                                 'typeId', BOXTYPE_CUSTOM.TOKEN,
                                                 'type', self.ABC_TYPE
                                                 )

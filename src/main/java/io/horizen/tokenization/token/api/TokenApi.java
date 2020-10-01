@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * That class provide routes for creation Lambo registry related transaction like Car declaration, create Car sell order, accept Car sell order, cancel Car sell order
+ * That class provide routes for the creation of custom transactions
  * All created here transaction are NOT moved to memoryPool, just hex representation of transaction is returned.
  * For adding transaction into memory pool core API /transaction/sendTransaction shall be used.
  * For example, for given hex transaction representation "7f0...800" next curl command could be used for adding that transaction into memory pool:
@@ -74,7 +74,7 @@ public class TokenApi extends ApplicationApiGroup {
         this.maxTokenPerType = (HashMap<String,Integer>) config.getObject("token").get("typeLimit").unwrapped();
     }
 
-    // Define the base path for API url, i.e. according current config we could access that Api Group by using address 127.0.0.1:9085/carApi
+    // Define the base path for API url, i.e. according current config we could access that Api Group by using address 127.0.0.1:9085/tokenApi
     @Override
     public String basePath() {
         return "tokenApi";
@@ -85,8 +85,8 @@ public class TokenApi extends ApplicationApiGroup {
     public List<Route> getRoutes() {
         List<Route> routes = new ArrayList<>();
 
-        //First parameter in bindPostRequest is endpoint path, for example for bindPostRequest("createCar", this::createCar, CreateCarBoxRequest.class)
-        //it is 127.0.0.1:9085/carApi/createCar according current config
+        //First parameter in bindPostRequest is endpoint path, for example for bindPostRequest("createTokens", ......)
+        //it is 127.0.0.1:9085/tokenApi/createTokens according current config
         routes.add(bindPostRequest("createTokens", this::createTokens, CreateTokensRequest.class));
         routes.add(bindPostRequest("createTokenSellOrder", this::createTokenSellOrder, CreateTokenSellOrderRequest.class));
         routes.add(bindPostRequest("acceptTokenSellOrder", this::acceptTokenSellOrder, SpendTokenSellOrderRequest.class));
@@ -117,7 +117,7 @@ public class TokenApi extends ApplicationApiGroup {
     private ApiResponse createTokens(SidechainNodeView view, CreateTokensRequest ent) {
         try {
             // Parse the proposition of the Token owner.
-            PublicKey25519Proposition carOwnershipProposition = PublicKey25519PropositionSerializer.getSerializer()
+            PublicKey25519Proposition ownershipProposition = PublicKey25519PropositionSerializer.getSerializer()
                     .parseBytes(BytesUtils.fromHexString(ent.proposition));
 
 
@@ -144,7 +144,7 @@ public class TokenApi extends ApplicationApiGroup {
                 if (! IDInfoDBService.validateId(id, Optional.of(view.getNodeMemoryPool()))){
                     throw new IllegalStateException("Token id already present in blockchain");
                 }
-                tokenBoxData[i] = new TokenBoxData(carOwnershipProposition, id, ent.type);
+                tokenBoxData[i] = new TokenBoxData(ownershipProposition, id, ent.type);
             }
 
             // Try to collect regular boxes to pay fee
@@ -249,7 +249,7 @@ public class TokenApi extends ApplicationApiGroup {
                     throw new IllegalArgumentException("TokenBox with given id "+boxid+" not found in the Wallet.");
                 }
             }
-            // Parse the proposition of the Car buyer.
+            // Parse the proposition of the buyer.
             PublicKey25519Proposition tokenBuyerProposition = PublicKey25519PropositionSerializer.getSerializer()
                     .parseBytes(BytesUtils.fromHexString(ent.buyerProposition));
 
@@ -335,21 +335,21 @@ public class TokenApi extends ApplicationApiGroup {
 
     private ApiResponse acceptTokenSellOrder(SidechainNodeView view, SpendTokenSellOrderRequest ent) {
         try {
-            // Try to find CarSellOrder to be opened in the closed boxes list
+            // Try to find a sell order to be opened in the closed boxes list
             Optional sellORder = view.getNodeState().getClosedBox(BytesUtils.fromHexString(ent.tokenSellOrderId));
             if (!sellORder.isPresent()){
                 return new TokenResponseError("0101", "Sell order not found", Option.empty());
             }
             TokenSellOrderBox tokenSellOrderBox = (TokenSellOrderBox)sellORder.get();
 
-            // Check that Car sell order buyer public key is controlled by node wallet.
+            // Check that sell order buyer public key is controlled by node wallet.
             Optional<Secret> buyerSecretOption = view.getNodeWallet().secretByPublicKey(
                     new PublicKey25519Proposition(tokenSellOrderBox.proposition().getBuyerPublicKeyBytes()));
             if(!buyerSecretOption.isPresent()) {
-                return new TokenResponseError("0100", "Can't buy the token, because the buyer proposition is not owned by the Node.", Option.empty());
+                return new TokenResponseError("0100", "Can'accept this sell order, because the buyer proposition is not owned by the Node.", Option.empty());
             }
 
-            // Get Regular boxes to pay the car price + fee
+            // Get Regular boxes to pay the order price + fee
             List<Box<Proposition>> paymentBoxes = new ArrayList<>();
             long amountToPay = tokenSellOrderBox.getPrice() + ent.fee;
 
@@ -430,7 +430,7 @@ public class TokenApi extends ApplicationApiGroup {
 
     private ApiResponse cancelTokenSellOrder(SidechainNodeView view, SpendTokenSellOrderRequest ent) {
         try {
-            // Try to find CarSellOrder to be opened in the closed boxes list
+            // Try to find a sell order to be opened in the closed boxes list
             Optional<Box> tokenSellOrderBoxOption = view.getNodeState().getClosedBox(BytesUtils.fromHexString(ent.tokenSellOrderId));
 
             if (!tokenSellOrderBoxOption.isPresent()) {
@@ -439,11 +439,11 @@ public class TokenApi extends ApplicationApiGroup {
 
             TokenSellOrderBox tokenSellOrderBox = (TokenSellOrderBox)tokenSellOrderBoxOption.get();
 
-            // Check that Car sell order owner public key is controlled by node wallet.
+            // Check that sell order owner public key is controlled by node wallet.
             Optional<Secret> ownerSecretOption = view.getNodeWallet().secretByPublicKey(
                     new PublicKey25519Proposition(tokenSellOrderBox.proposition().getOwnerPublicKeyBytes()));
             if(!ownerSecretOption.isPresent()) {
-                return new TokenResponseError("0100", "Can't buy the token, because the owner proposition is not owned by the Node.", Option.empty());
+                return new TokenResponseError("0100", "Can't cancel this sell order, because the owner proposition is not owned by the Node.", Option.empty());
             }
 
             // Get Regular boxes to pay the fee
@@ -524,7 +524,7 @@ public class TokenApi extends ApplicationApiGroup {
         }
     }
 
-    // The CarApi requests success result output structure.
+    // The api requests success result output structure.
     @JsonView(Views.Default.class)
     static class SupplyResponse implements SuccessResponse {
         public SupplyItem[] supply;
@@ -561,7 +561,6 @@ public class TokenApi extends ApplicationApiGroup {
         }
     }
 
-    // The CarApi requests success result output structure.
     @JsonView(Views.Default.class)
     static class TxResponse implements SuccessResponse {
         public String transactionBytes;
@@ -572,7 +571,6 @@ public class TokenApi extends ApplicationApiGroup {
     }
 
 
-    // The CarApi requests error result output structure.
     static class TokenResponseError implements ErrorResponse {
         private final String code;
         private final String description;

@@ -4,7 +4,6 @@ import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.horizen.block.SidechainBlock;
 import com.horizen.box.Box;
-import com.horizen.box.BoxUnlocker;
 import com.horizen.proposition.Proposition;
 import com.horizen.proposition.PublicKey25519Proposition;
 import com.horizen.proposition.PublicKey25519PropositionSerializer;
@@ -31,7 +30,7 @@ public class TokenApplicationState implements ApplicationState {
 
 	private IDInfoDBService IDInfoDbService;
 	private Config config;
-    private ArrayList<String> creator;
+    private ArrayList<String> creatorPropositions;
     private HashMap<String, Integer> maxTokenPerType;
 
     private static Logger log =  LoggerFactory.getLogger(TokenApplicationState.class);
@@ -40,7 +39,7 @@ public class TokenApplicationState implements ApplicationState {
 	public TokenApplicationState(IDInfoDBService IDInfoDbService, @Named("ConfigTokenizationApp") Config config) {
 	    this.IDInfoDbService = IDInfoDbService;
 	    this.config = config;
-        this.creator = (ArrayList<String>) this.config.getObject("token").get("creatorPropositions").unwrapped();
+        this.creatorPropositions = (ArrayList<String>) this.config.getObject("token").get("creatorPropositions").unwrapped();
         this.maxTokenPerType = (HashMap<String,Integer>) this.config.getObject("token").get("typeLimit").unwrapped();
     }
 
@@ -88,8 +87,10 @@ public class TokenApplicationState implements ApplicationState {
 
     /**
      * Single transaction validation.
-     * We check the following constraints:
-     * - the create token transaction must be performed by one of the token creators contained in the config file
+     * For CreateTokensTransaction we check the following constraints:
+     * - the creator of the transaction demonstrates (by a signature) that he owned a the private keys corresponding to  one of the public keys identifying
+     *   the token creators contained in the config file
+     * - the created tokens can be unlocked by one of the creators listed in the config file
      * - the token type must be contained in the config file
      * - the token id must not be already present
      * - the max limit of token for each type is not reached
@@ -102,9 +103,9 @@ public class TokenApplicationState implements ApplicationState {
             for (Box box : transaction.newBoxes()) {
                 if (TokenBox.class.isInstance(box)) {
                     TokenBox currBox = TokenBox.parseBytes(box.bytes());
-                    // Check that only the propositions specified in the config are able to create tokens
-                    if (!this.creator.contains(ByteUtils.toHexString(box.proposition().bytes()))) {
-                        log.warn("Error during transaction validation: this proposition is not allowed to create tokens!");
+                    // Check that the created tokens can be unlocked by one of the creators listed in the config file
+                    if (!this.creatorPropositions.contains(ByteUtils.toHexString(box.proposition().bytes()))) {
+                        log.warn("Error during transaction validation: token emitted to unallowed public key");
                         return false;
                     }
                     // Check that the token type is included in the config
@@ -135,16 +136,16 @@ public class TokenApplicationState implements ApplicationState {
             }
 
             //checks that the creator of the transaction is one of the ones identified by the public keys in the
-            //config file: in order to do that we verify the creator signature against one of the public keys
+            //config file: in order to do that we verify the creator signature against one of the public keys listed in conf
             boolean authorized = false;
-            for (String publicKey : this.creator) {
+            for (String publicKey : this.creatorPropositions) {
                 PublicKey25519Proposition testProposition = PublicKey25519PropositionSerializer.getSerializer()
                         .parseBytes(BytesUtils.fromHexString(publicKey));
                 if (testProposition.verify(transaction.messageToSign(), txCt.getCreatorSignature())) {
                     authorized = true;
+                    break;
                 }
             }
-
             if(!authorized) {
                 log.warn("Error during transaction validation: creator not authorized");
                 return false;
@@ -160,18 +161,24 @@ public class TokenApplicationState implements ApplicationState {
                                                 List<Box<Proposition>> newBoxes, List<byte[]> boxIdsToRemove) {
         //We update the tokein id info database (the data from it will be used during validation) and
         //the counter of new forged tokens for each type (the data from it will be used for the tokenApi/supply endpoint)
+
+        //this list will collect all the new tokenId in these newboxes
         Set<String> idList = new HashSet<String>();
+
+        //this list will mantain the counter of the number of new token forged for each type in these newboxes
+        //(counter initially set to 0)
         Map<String, Integer> forgedCounters = new HashMap();
         for (String tokenType: this.maxTokenPerType.keySet()){
             forgedCounters.put(tokenType, 0);
         }
+
         for (Box<Proposition> currentBox : newBoxes) {
             if (TokenBox.class.isAssignableFrom(currentBox.getClass())){
                 TokenBox currTBox = TokenBox.parseBytes(currentBox.bytes());
                 String id  = currTBox.getTokenId();
                 String type = currTBox.getType();
                 if ((IDInfoDbService.validateId(id, Optional.empty()))){
-                    //if the id is validated was not present on the DB, so the token has been just forged: we increase the forgedCount
+                    //if the id is validated, it was not present on the DB, so the token has been just forged: we increase the forgedCount
                     forgedCounters.put(type, forgedCounters.get(type) + 1);
                 }
                 idList.add(id);

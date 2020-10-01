@@ -14,9 +14,9 @@ import com.horizen.utils.BytesUtils;
 
 import java.util.Arrays;
 
-// CarBuyOrderInfo contains the minimal set of data needed to construct BuyCarTransaction specific inputs an outputs.
+// TokenBuyOrderInfo contains the minimal set of data needed to construct BuyTokenTransaction specific inputs an outputs.
 public final class TokenBuyOrderInfo {
-    private final TokenSellOrderBox tokenSellOrderBoxToOpen;  // Sell order box to be spent in BuyCarTransaction
+    private final TokenSellOrderBox tokenSellOrderBoxToOpen;  // Sell order box to be spent in BuyTokenTransaction
     private final SellOrderSpendingProof proof;           // Proof to unlock the box above
 
     public TokenBuyOrderInfo(TokenSellOrderBox tokenSellOrderBoxToOpen, SellOrderSpendingProof proof) {
@@ -64,7 +64,7 @@ public final class TokenBuyOrderInfo {
         );
     }
 
-    // CarBuyOrderInfo minimal bytes representation.
+    //minimal bytes representation.
     public byte[] bytes() {
         byte[] tokenSellOrderBoxToOpenBytes = TokenSellOrderBoxSerializer.getSerializer().toBytes(tokenSellOrderBoxToOpen);
         byte[] proofBytes = SellOrderSpendingProofSerializer.getSerializer().toBytes(proof);
