@@ -95,14 +95,6 @@ public class TokenApi extends ApplicationApiGroup {
         return routes;
     }
 
-
-    private String createTokenID(long id) {
-        String idToString = String.valueOf(id);
-        int n = 10-idToString.length();
-        String tokenID = IntStream.range(0, n).mapToObj(i -> "0").collect(Collectors.joining(""));
-        return tokenID + idToString;
-    }
-
     private ApiResponse supply(SidechainNodeView view) {
         SupplyItem[] items = new SupplyItem[this.maxTokenPerType.keySet().size()];
         int index = 0;
@@ -136,14 +128,10 @@ public class TokenApi extends ApplicationApiGroup {
                 throw new IllegalStateException("Maximum number of tokens reached for this type");
             }
 
-           // Check that the token ID is unique (both in local id store and in mempool).
+
            TokenBoxData[] tokenBoxData = new TokenBoxData[ent.numberOfTokens];
             for (int i = 0; i < ent.numberOfTokens; i++) {
-                byte[] hash = Blake2b256.hash(Bytes.concat(Longs.toByteArray(new Date().getTime()),Ints.toByteArray(i)));
-                String id = this.createTokenID(BytesUtils.getLong(hash, 0));
-                if (! IDInfoDBService.validateId(id, Optional.of(view.getNodeMemoryPool()))){
-                    throw new IllegalStateException("Token id already present in blockchain");
-                }
+                String id =  this.generateTokenId(view, i);
                 tokenBoxData[i] = new TokenBoxData(ownershipProposition, id, ent.type);
             }
 
@@ -596,6 +584,16 @@ public class TokenApi extends ApplicationApiGroup {
         public Option<Throwable> exception() {
             return exception;
         }
+    }
+
+    // generates a random tokenid  of 20 characters and check that is unique (both in local id store and in mempool).
+    private String generateTokenId(SidechainNodeView view, int nonce){
+        String id = null;
+        do {
+            byte[] hash = Blake2b256.hash(Bytes.concat(Longs.toByteArray(new Date().getTime()), Ints.toByteArray(nonce)));
+            id = BytesUtils.toHexString(hash).substring(0, 20);
+        } while (!IDInfoDBService.validateId(id, Optional.of(view.getNodeMemoryPool())));
+        return id;
     }
 
     // Utility functions to get from the current mempool the list of all boxes to be opened.
