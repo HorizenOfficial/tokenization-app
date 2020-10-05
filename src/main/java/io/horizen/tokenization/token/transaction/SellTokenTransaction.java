@@ -23,17 +23,13 @@ import java.util.List;
 
 import static io.horizen.tokenization.token.transaction.TokenTransactionsIdsEnum.SellTokenTransactionId;
 
-// SellCarTransaction is nested from AbstractRegularTransaction so support regular coins transmission as well.
-// SellCarTransaction was designed to create a SellOrder for a specific buyer for given CarBox owned by the user.
-// As outputs it contains possible RegularBoxes(to pay fee and make change) and new CarSellOrder entry.
-// As unlockers it contains RegularBoxes and CarBox to open.
+// SellTokenTransaction is nested from AbstractRegularTransaction so support regular coins transmission as well.
+// SellTokenTransaction was designed to create a SellOrder for a specific buyer for given TokenBox owned by the user.
+// As outputs it contains possible RegularBoxes(to pay fee and make change) and new TokenSellOrder entry.
+// As unlockers it contains RegularBoxes and TokenBox to open.
 public final class SellTokenTransaction extends AbstractRegularTransaction {
 
-    // CarSellOrderInfo is a view that describes what car box to open and what is the sell order(car attributes, price and buyer info).
-    // But inside it contains just a minimum set of info (like CarBox itself and price) that is the unique source of data.
-    // So, no one outside controls what will be the specific outputs of this transaction.
-    // Any malicious actions will lead to transaction invalidation.
-    // For example, if CarBox was opened, the CarSellOrder obliged to contains the same car attributes and owner info.
+    // TokenSellOrderInfo is a view that describes all the attributes of this sell order (tokens to sell, price, and buyer info)
     private final TokenSellOrderInfo tokenSellOrderInfo;
 
     private List<NoncedBox<Proposition>> newBoxes;
@@ -54,37 +50,39 @@ public final class SellTokenTransaction extends AbstractRegularTransaction {
         return SellTokenTransactionId.id();
     }
 
-    // Override unlockers to contains regularBoxes from the parent class appended with CarBox entry to be opened.
+    // Override unlockers to contains regularBoxes from the parent class appended with TokenBox entry to be opened.
     @Override
     public List<BoxUnlocker<Proposition>> unlockers() {
         // Get Regular unlockers from base class.
         List<BoxUnlocker<Proposition>> unlockers = super.unlockers();
 
-        BoxUnlocker<Proposition> unlocker = new BoxUnlocker<Proposition>() {
-            @Override
-            public byte[] closedBoxId() {
-                return tokenSellOrderInfo.getTokenBoxToOpen().id();
-            }
-
-            @Override
-            public Proof boxKey() {
-                return tokenSellOrderInfo.getCarBoxSpendingProof();
-            }
-        };
-        // Append with the CarBox unlocker entry.
-        unlockers.add(unlocker);
+        for (int i = 0 ; i < tokenSellOrderInfo.getTotalTokensToSell(); i++) {
+            final byte[] boxId = tokenSellOrderInfo.getTokenBoxToOpen(i).id();
+            final Proof proof = tokenSellOrderInfo.getTokenBoxSpendingProof(i);
+            BoxUnlocker<Proposition> unlocker = new BoxUnlocker<Proposition>() {
+                @Override
+                public byte[] closedBoxId() {
+                    return boxId;
+                }
+                @Override
+                public Proof boxKey() {
+                    return proof;
+                }
+            };
+            // Append with the TokenBox unlocker entry.
+            unlockers.add(unlocker);
+        }
 
         return unlockers;
     }
 
-    // Override newBoxes to contains regularBoxes from the parent class appended with CarSellOrderBox and payment entries.
-    // The nonce calculation algorithm for CarSellOrderBox is the same as in parent class.
+    // Override newBoxes to contains regularBoxes from the parent class appended with TokenSellOrderBox and payment entries.
     @Override
     public List<NoncedBox<Proposition>> newBoxes() {
         if(newBoxes == null) {
             newBoxes = new ArrayList<>(super.newBoxes());
             long nonce = getNewBoxNonce(tokenSellOrderInfo.getSellOrderBoxData().proposition(), newBoxes.size());
-            // Here we enforce output CarSellOrder data calculation.
+            // Here we enforce output TokenSellOrder data calculation.
             // Any malicious action will lead to different inconsistent data to the honest nodes State.
             newBoxes.add((NoncedBox) new TokenSellOrderBox(tokenSellOrderInfo.getSellOrderBoxData(), nonce));
 
@@ -92,7 +90,7 @@ public final class SellTokenTransaction extends AbstractRegularTransaction {
         return Collections.unmodifiableList(newBoxes);
     }
 
-    // Define object serialization, that should serialize both parent class entries and CarSellOrderInfo as well
+    // Define object serialization, that should serialize both parent class entries and TokenSellOrderInfo as well
     @Override
     public byte[] bytes() {
         ByteArrayOutputStream inputsIdsStream = new ByteArrayOutputStream();
@@ -162,7 +160,7 @@ public final class SellTokenTransaction extends AbstractRegularTransaction {
         return new SellTokenTransaction(inputRegularBoxIds, inputRegularBoxProofs, outputRegularBoxesData, tokenSellOrderInfo, fee, timestamp);
     }
 
-    // Set specific Serializer for SellCarTransaction class.
+    // Set specific Serializer for SellTokenTransaction class.
     @Override
     public TransactionSerializer serializer() {
         return SellTokenTransactionSerializer.getSerializer();

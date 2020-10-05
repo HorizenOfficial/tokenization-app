@@ -12,30 +12,30 @@ import io.horizen.tokenization.token.proposition.SellOrderPropositionSerializer;
 import com.horizen.serialization.Views;
 import scorex.crypto.hash.Blake2b256;
 
+import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 
+/**
+ * A Token sell order has an overall price and may contain more than one token: in this structure
+ * we store for each token the id, the type, and the owner public key
+ */
 @JsonView(Views.Default.class)
 public final class TokenSellOrderBoxData extends AbstractNoncedBoxData<SellOrderProposition, TokenSellOrderBox, TokenSellOrderBoxData> {
 
-    // Car sell order attributes is similar to car attributes.
-    // The only change is that Sell order contains the car price as well.
-    private final String id;
-    private final String type;
 
-    public TokenSellOrderBoxData(SellOrderProposition proposition, long price, String id, String type) {
+    private final TokenSellOrderItem[] orderItems;
+
+    public TokenSellOrderBoxData(SellOrderProposition proposition, long price,  TokenSellOrderItem[] orderItems) {
         super(proposition, price);
-        this.id = id;
-        this.type = type;
+        this.orderItems = orderItems;
     }
 
-    public String getID() {
-        return id;
+    public TokenSellOrderItem getOrderItem(int i){
+        return orderItems[i];
     }
-
-    public String getType() {
-        return type;
+    public int getOrderItemLenght(){
+        return orderItems.length;
     }
-
 
     @Override
     public TokenSellOrderBox getBox(long nonce) {
@@ -44,10 +44,14 @@ public final class TokenSellOrderBoxData extends AbstractNoncedBoxData<SellOrder
 
     @Override
     public byte[] customFieldsHash() {
+        ByteArrayOutputStream orderItemsStream = new ByteArrayOutputStream();
+        for(TokenSellOrderItem item: orderItems){
+            byte[] arr = item.bytes();
+            orderItemsStream.write(arr, 0, arr.length);
+        }
         return Blake2b256.hash(
-                Bytes.concat(
-                        id.getBytes(),
-                        type.getBytes()));
+                orderItemsStream.toByteArray()
+        );
     }
 
     @Override
@@ -62,14 +66,20 @@ public final class TokenSellOrderBoxData extends AbstractNoncedBoxData<SellOrder
 
     @Override
     public byte[] bytes() {
+
+        ByteArrayOutputStream orderItemsStream = new ByteArrayOutputStream();
+        for(TokenSellOrderItem item: orderItems){
+            byte[] arr = item.bytes();
+            byte[] arrLenght = Ints.toByteArray(arr.length);
+            orderItemsStream.write(arrLenght, 0, arrLenght.length);
+            orderItemsStream.write(arr, 0, arr.length);
+        }
         return Bytes.concat(
                 Ints.toByteArray(proposition().bytes().length),
                 proposition().bytes(),
                 Longs.toByteArray(value()),
-                Ints.toByteArray(id.getBytes().length),
-                id.getBytes(),
-                Ints.toByteArray(type.getBytes().length),
-                type.getBytes()
+                Ints.toByteArray(orderItems.length),
+                orderItemsStream.toByteArray()
         );
     }
 
@@ -89,24 +99,28 @@ public final class TokenSellOrderBoxData extends AbstractNoncedBoxData<SellOrder
         size = Ints.fromByteArray(Arrays.copyOfRange(bytes, offset, offset + Ints.BYTES));
         offset += Ints.BYTES;
 
-        String id = new String(Arrays.copyOfRange(bytes, offset, offset + size));
-        offset += size;
+        TokenSellOrderItem[] sellItems = new TokenSellOrderItem[size];
+        for (int i = 0; i < size; i++ ){
+            int itemSize = Ints.fromByteArray(Arrays.copyOfRange(bytes, offset, offset + Ints.BYTES));
+            offset += Ints.BYTES;
 
-        size = Ints.fromByteArray(Arrays.copyOfRange(bytes, offset, offset + Ints.BYTES));
-        offset += Ints.BYTES;
+            sellItems[i] = TokenSellOrderItem.parseBytes(Arrays.copyOfRange(bytes, offset, offset + itemSize));
+            offset += itemSize;
+        }
 
-        String type = new String(Arrays.copyOfRange(bytes, offset, offset + size));
-
-        return new TokenSellOrderBoxData(proposition, price, id, type);
+        return new TokenSellOrderBoxData(proposition, price, sellItems);
     }
 
     @Override
     public String toString() {
+        String tokensIds = "";
+        for (TokenSellOrderItem item: orderItems) {
+            tokensIds = tokensIds + (tokensIds.length() > 0 ? "," : "") + item.getTokenId();
+        }
         return "TokenSellOrderBoxData{" +
-                "id=" + id +
+                "  tokenId=[" + tokensIds + "]" +
                 ", proposition=" + proposition() +
                 ", value=" + value() +
-                ", type=" + type +
                 '}';
     }
 }

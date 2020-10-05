@@ -1,0 +1,11 @@
+class BOXTYPE_STANDARD():
+    REGULAR = 1
+    WITHDRAWAL_REQUEST = 2
+    FORGER = 3
+
+class BOXTYPE_CUSTOM():
+    TOKEN = 1
+    SELL_ORDER = 2
+
+
+

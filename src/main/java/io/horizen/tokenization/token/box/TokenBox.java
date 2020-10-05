@@ -15,9 +15,9 @@ import java.util.Arrays;
 
 import static io.horizen.tokenization.token.box.TokenBoxesIdsEnum.TokenBoxId;
 
-// Declare default JSON view for CarBox object. Will automatically collect all getters except ignored ones.
+
 @JsonView(Views.Default.class)
-@JsonIgnoreProperties({"carId", "value"})
+@JsonIgnoreProperties({"value"})
 public final class TokenBox extends AbstractNoncedBox<PublicKey25519Proposition, TokenBoxData, TokenBox> {
 
     public TokenBox(TokenBoxData boxData, long nonce) {
@@ -49,21 +49,13 @@ public final class TokenBox extends AbstractNoncedBox<PublicKey25519Proposition,
         return new TokenBox(boxData, nonce);
     }
 
-    // Set car attributes getters, that is used to automatically construct JSON view:
 
-    public String getID() {
-        return boxData.getID();
+    public String getTokenId() {
+        return boxData.getTokenId();
     }
 
     public String getType() {
         return boxData.getType();
     }
 
-
-    public byte[] getTokenId() {
-        return Bytes.concat(
-                getID().getBytes(),
-                getType().getBytes()
-        );
-    }
 }

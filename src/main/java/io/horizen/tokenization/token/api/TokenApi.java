@@ -32,6 +32,7 @@ import io.horizen.tokenization.token.box.TokenBox;
 import io.horizen.tokenization.token.box.TokenSellOrderBox;
 import io.horizen.tokenization.token.box.data.TokenBoxData;
 import io.horizen.tokenization.token.info.TokenBuyOrderInfo;
+import io.horizen.tokenization.token.info.TokenCreateInfo;
 import io.horizen.tokenization.token.info.TokenSellOrderInfo;
 import io.horizen.tokenization.token.proof.SellOrderSpendingProof;
 import io.horizen.tokenization.token.services.IDInfoDBService;
@@ -46,7 +47,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * That class provide routes for creation Lambo registry related transaction like Car declaration, create Car sell order, accept Car sell order, cancel Car sell order
+ * That class provide routes for the creation of custom transactions
  * All created here transaction are NOT moved to memoryPool, just hex representation of transaction is returned.
  * For adding transaction into memory pool core API /transaction/sendTransaction shall be used.
  * For example, for given hex transaction representation "7f0...800" next curl command could be used for adding that transaction into memory pool:
@@ -62,6 +63,7 @@ public class TokenApi extends ApplicationApiGroup {
     private final SidechainTransactionsCompanion sidechainTransactionsCompanion;
     private IDInfoDBService IDInfoDBService;
     private ArrayList<String> creator;
+    private HashMap<String,Integer >maxTokenPerType;
 
     @Inject
     public TokenApi(@Named("SidechainTransactionsCompanion") SidechainTransactionsCompanion sidechainTransactionsCompanion, IDInfoDBService IDInfoDBService,
@@ -69,9 +71,10 @@ public class TokenApi extends ApplicationApiGroup {
         this.sidechainTransactionsCompanion = sidechainTransactionsCompanion;
         this.IDInfoDBService = IDInfoDBService;
         this.creator = (ArrayList<String>) config.getObject("token").get("creatorPropositions").unwrapped();
+        this.maxTokenPerType = (HashMap<String,Integer>) config.getObject("token").get("typeLimit").unwrapped();
     }
 
-    // Define the base path for API url, i.e. according current config we could access that Api Group by using address 127.0.0.1:9085/carApi
+    // Define the base path for API url, i.e. according current config we could access that Api Group by using address 127.0.0.1:9085/tokenApi
     @Override
     public String basePath() {
         return "tokenApi";
@@ -82,27 +85,31 @@ public class TokenApi extends ApplicationApiGroup {
     public List<Route> getRoutes() {
         List<Route> routes = new ArrayList<>();
 
-        //First parameter in bindPostRequest is endpoint path, for example for bindPostRequest("createCar", this::createCar, CreateCarBoxRequest.class)
-        //it is 127.0.0.1:9085/carApi/createCar according current config
+        //First parameter in bindPostRequest is endpoint path, for example for bindPostRequest("createTokens", ......)
+        //it is 127.0.0.1:9085/tokenApi/createTokens according current config
         routes.add(bindPostRequest("createTokens", this::createTokens, CreateTokensRequest.class));
         routes.add(bindPostRequest("createTokenSellOrder", this::createTokenSellOrder, CreateTokenSellOrderRequest.class));
         routes.add(bindPostRequest("acceptTokenSellOrder", this::acceptTokenSellOrder, SpendTokenSellOrderRequest.class));
         routes.add(bindPostRequest("cancelTokenSellOrder", this::cancelTokenSellOrder, SpendTokenSellOrderRequest.class));
+        routes.add(bindPostRequest("supply", this::supply));
         return routes;
     }
 
-
-    private String createTokenID(long id) {
-        String idToString = String.valueOf(id);
-        int n = 10-idToString.length();
-        String tokenID = IntStream.range(0, n).mapToObj(i -> "0").collect(Collectors.joining(""));
-        return tokenID + idToString;
+    private ApiResponse supply(SidechainNodeView view) {
+        SupplyItem[] items = new SupplyItem[this.maxTokenPerType.keySet().size()];
+        int index = 0;
+        for (String tokenType: this.maxTokenPerType.keySet()){
+            int typeCount = IDInfoDBService.getTypeCount(tokenType);
+            items[index] = new SupplyItem(tokenType, typeCount, this.maxTokenPerType.get(tokenType));
+            index++;
+        }
+        return new SupplyResponse(items);
     }
 
     private ApiResponse createTokens(SidechainNodeView view, CreateTokensRequest ent) {
         try {
             // Parse the proposition of the Token owner.
-            PublicKey25519Proposition carOwnershipProposition = PublicKey25519PropositionSerializer.getSerializer()
+            PublicKey25519Proposition ownershipProposition = PublicKey25519PropositionSerializer.getSerializer()
                     .parseBytes(BytesUtils.fromHexString(ent.proposition));
 
 
@@ -111,15 +118,21 @@ public class TokenApi extends ApplicationApiGroup {
                 throw new IllegalStateException("This proposition is not allowed to create token!");
             }
 
+            // Check that the token type is correct
+            if (!this.maxTokenPerType.containsKey(ent.type)) {
+                throw new IllegalStateException("Token type not allowed");
+            }
+
+            // Check that the max number of tokens has not yet been reached
+            if(IDInfoDBService.getTypeCount(ent.type) + ent.numberOfTokens > this.maxTokenPerType.get(ent.type)) {
+                throw new IllegalStateException("Maximum number of tokens reached for this type");
+            }
+
+
            TokenBoxData[] tokenBoxData = new TokenBoxData[ent.numberOfTokens];
             for (int i = 0; i < ent.numberOfTokens; i++) {
-                byte[] hash = Blake2b256.hash(Bytes.concat(Longs.toByteArray(new Date().getTime()),Ints.toByteArray(i)));
-                String id = this.createTokenID(BytesUtils.getLong(hash, 0));
-                // Check that the token ID is unique (both in local veichle store and in mempool).
-                if (! IDInfoDBService.validateId(id, Optional.of(view.getNodeMemoryPool()))){
-                    throw new IllegalStateException("Token id already present in blockchain");
-                }
-                tokenBoxData[i] = new TokenBoxData(carOwnershipProposition, id, ent.type);
+                String id =  this.generateTokenId(view, i);
+                tokenBoxData[i] = new TokenBoxData(ownershipProposition, id, ent.type);
             }
 
             // Try to collect regular boxes to pay fee
@@ -164,11 +177,14 @@ public class TokenApi extends ApplicationApiGroup {
             List fakeProofs = Collections.nCopies(inputIds.size(), null);
             Long timestamp = System.currentTimeMillis();
 
+            TokenCreateInfo fakeTokenCreateInfo = new TokenCreateInfo(new byte[0]);
+
             CreateTokensTransaction unsignedTransaction = new CreateTokensTransaction(
                     inputIds,
                     fakeProofs,
                     regularOutputs,
                     tokenBoxData,
+                    fakeTokenCreateInfo,
                     ent.fee,
                     timestamp);
 
@@ -181,12 +197,19 @@ public class TokenApi extends ApplicationApiGroup {
                 proofs.add((Signature25519) view.getNodeWallet().secretByPublicKey(box.proposition()).get().sign(messageToSign));
             }
 
+
+            PublicKey25519Proposition creatorProposition = PublicKey25519PropositionSerializer.getSerializer()
+                    .parseBytes(BytesUtils.fromHexString((ent.proposition)));
+            byte[] creatorSignature = (view.getNodeWallet().secretByPublicKey(creatorProposition).get().sign(messageToSign).bytes());
+            TokenCreateInfo tokenCreateInfo = new TokenCreateInfo(creatorSignature);
+
             // Create the transaction with real proofs.
             CreateTokensTransaction signedTransaction = new CreateTokensTransaction(
                     inputIds,
                     proofs,
                     regularOutputs,
                     tokenBoxData,
+                    tokenCreateInfo,
                     ent.fee,
                     timestamp);
 
@@ -199,19 +222,22 @@ public class TokenApi extends ApplicationApiGroup {
 
     private ApiResponse createTokenSellOrder(SidechainNodeView view, CreateTokenSellOrderRequest ent) {
         try {
-            // Try to find CarBox to be opened in the closed boxes list
-            TokenBox tokenBox = null;
-
-            for (Box b : view.getNodeWallet().boxesOfType(TokenBox.class)) {
-                if (Arrays.equals(b.id(), BytesUtils.fromHexString(ent.tokenBoxId)))
-                    tokenBox = (TokenBox) b;
+            // Try to find TokenBox to be opened in the closed boxes list
+            TokenBox[] tokenBoxes = new TokenBox[ent.tokenBoxIds.length];
+            Signature25519[] boxProofs = new Signature25519[ent.tokenBoxIds.length];
+            for (int i = 0; i < ent.tokenBoxIds.length; i++) {
+               String boxid = ent.tokenBoxIds[i];
+                for (Box b : view.getNodeWallet().boxesOfType(TokenBox.class)) {
+                    if (Arrays.equals(b.id(), BytesUtils.fromHexString(boxid))){
+                        tokenBoxes[i] = (TokenBox) b;
+                        break;
+                    }
+                }
+                if (tokenBoxes[i]  == null){
+                    throw new IllegalArgumentException("TokenBox with given id "+boxid+" not found in the Wallet.");
+                }
             }
-
-            if (tokenBox == null) {
-                throw new IllegalArgumentException("TokenBox with given box id not found in the Wallet.");
-            }
-
-            // Parse the proposition of the Car buyer.
+            // Parse the proposition of the buyer.
             PublicKey25519Proposition tokenBuyerProposition = PublicKey25519PropositionSerializer.getSerializer()
                     .parseBytes(BytesUtils.fromHexString(ent.buyerProposition));
 
@@ -245,7 +271,7 @@ public class TokenApi extends ApplicationApiGroup {
             }
 
             // Create fake proofs to be able to create transaction to be signed.
-            TokenSellOrderInfo fakeSaleOrderInfo = new TokenSellOrderInfo(tokenBox, null, ent.sellPrice, tokenBuyerProposition);
+            TokenSellOrderInfo fakeSaleOrderInfo = new TokenSellOrderInfo(tokenBoxes, boxProofs, ent.sellPrice, tokenBuyerProposition);
             List<Signature25519> fakeRegularInputProofs = Collections.nCopies(inputRegularBoxIds.size(), null);
 
             Long timestamp = System.currentTimeMillis();
@@ -268,9 +294,13 @@ public class TokenApi extends ApplicationApiGroup {
                 regularInputProofs.add((Signature25519) view.getNodeWallet().secretByPublicKey(box.proposition()).get().sign(messageToSign));
             }
 
+            for (int i = 0; i < tokenBoxes.length; i++){
+                boxProofs[i] =  (Signature25519)view.getNodeWallet().secretByPublicKey(tokenBoxes[i].proposition()).get().sign(messageToSign);
+            }
+
             TokenSellOrderInfo saleOrderInfo = new TokenSellOrderInfo(
-                    tokenBox,
-                    (Signature25519)view.getNodeWallet().secretByPublicKey(tokenBox.proposition()).get().sign(messageToSign),
+                    tokenBoxes,
+                    boxProofs,
                     ent.sellPrice,
                     tokenBuyerProposition);
 
@@ -293,17 +323,21 @@ public class TokenApi extends ApplicationApiGroup {
 
     private ApiResponse acceptTokenSellOrder(SidechainNodeView view, SpendTokenSellOrderRequest ent) {
         try {
-            // Try to find CarSellOrder to be opened in the closed boxes list
-            TokenSellOrderBox tokenSellOrderBox = (TokenSellOrderBox)view.getNodeState().getClosedBox(BytesUtils.fromHexString(ent.tokenSellOrderId)).get();
+            // Try to find a sell order to be opened in the closed boxes list
+            Optional sellORder = view.getNodeState().getClosedBox(BytesUtils.fromHexString(ent.tokenSellOrderId));
+            if (!sellORder.isPresent()){
+                return new TokenResponseError("0101", "Sell order not found", Option.empty());
+            }
+            TokenSellOrderBox tokenSellOrderBox = (TokenSellOrderBox)sellORder.get();
 
-            // Check that Car sell order buyer public key is controlled by node wallet.
+            // Check that sell order buyer public key is controlled by node wallet.
             Optional<Secret> buyerSecretOption = view.getNodeWallet().secretByPublicKey(
                     new PublicKey25519Proposition(tokenSellOrderBox.proposition().getBuyerPublicKeyBytes()));
             if(!buyerSecretOption.isPresent()) {
-                return new TokenResponseError("0100", "Can't buy the token, because the buyer proposition is not owned by the Node.", Option.empty());
+                return new TokenResponseError("0100", "Can'accept this sell order, because the buyer proposition is not owned by the Node.", Option.empty());
             }
 
-            // Get Regular boxes to pay the car price + fee
+            // Get Regular boxes to pay the order price + fee
             List<Box<Proposition>> paymentBoxes = new ArrayList<>();
             long amountToPay = tokenSellOrderBox.getPrice() + ent.fee;
 
@@ -384,7 +418,7 @@ public class TokenApi extends ApplicationApiGroup {
 
     private ApiResponse cancelTokenSellOrder(SidechainNodeView view, SpendTokenSellOrderRequest ent) {
         try {
-            // Try to find CarSellOrder to be opened in the closed boxes list
+            // Try to find a sell order to be opened in the closed boxes list
             Optional<Box> tokenSellOrderBoxOption = view.getNodeState().getClosedBox(BytesUtils.fromHexString(ent.tokenSellOrderId));
 
             if (!tokenSellOrderBoxOption.isPresent()) {
@@ -393,11 +427,11 @@ public class TokenApi extends ApplicationApiGroup {
 
             TokenSellOrderBox tokenSellOrderBox = (TokenSellOrderBox)tokenSellOrderBoxOption.get();
 
-            // Check that Car sell order owner public key is controlled by node wallet.
+            // Check that sell order owner public key is controlled by node wallet.
             Optional<Secret> ownerSecretOption = view.getNodeWallet().secretByPublicKey(
                     new PublicKey25519Proposition(tokenSellOrderBox.proposition().getOwnerPublicKeyBytes()));
             if(!ownerSecretOption.isPresent()) {
-                return new TokenResponseError("0100", "Can't buy the car, because the owner proposition is not owned by the Node.", Option.empty());
+                return new TokenResponseError("0100", "Can't cancel this sell order, because the owner proposition is not owned by the Node.", Option.empty());
             }
 
             // Get Regular boxes to pay the fee
@@ -478,7 +512,43 @@ public class TokenApi extends ApplicationApiGroup {
         }
     }
 
-    // The CarApi requests success result output structure.
+    // The api requests success result output structure.
+    @JsonView(Views.Default.class)
+    static class SupplyResponse implements SuccessResponse {
+        public SupplyItem[] supply;
+
+        public SupplyResponse(SupplyItem[] supply) {
+            this.supply = supply;
+        }
+        
+        public SupplyItem[] getSupply(){
+            return supply;
+        }
+    }
+    @JsonView(Views.Default.class)
+    static class SupplyItem {
+        public String tokenType;
+        public int forged;
+        public int maxSupply;
+
+        public SupplyItem(String tokenType, int forged, int maxSupply) {
+            this.tokenType = tokenType;
+            this.maxSupply = maxSupply;
+            this.forged = forged;
+        }
+
+        public String getTokenType(){
+            return tokenType;
+        }
+
+        public int getForged() {
+            return forged;
+        }
+        public int getMaxSupply() {
+            return maxSupply;
+        }
+    }
+
     @JsonView(Views.Default.class)
     static class TxResponse implements SuccessResponse {
         public String transactionBytes;
@@ -488,7 +558,7 @@ public class TokenApi extends ApplicationApiGroup {
         }
     }
 
-    // The CarApi requests error result output structure.
+
     static class TokenResponseError implements ErrorResponse {
         private final String code;
         private final String description;
@@ -514,6 +584,16 @@ public class TokenApi extends ApplicationApiGroup {
         public Option<Throwable> exception() {
             return exception;
         }
+    }
+
+    // generates a random tokenid  of 20 characters and check that is unique (both in local id store and in mempool).
+    private String generateTokenId(SidechainNodeView view, int nonce){
+        String id = null;
+        do {
+            byte[] hash = Blake2b256.hash(Bytes.concat(Longs.toByteArray(new Date().getTime()), Ints.toByteArray(nonce)));
+            id = BytesUtils.toHexString(hash).substring(0, 20);
+        } while (!IDInfoDBService.validateId(id, Optional.of(view.getNodeMemoryPool())));
+        return id;
     }
 
     // Utility functions to get from the current mempool the list of all boxes to be opened.

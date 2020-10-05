@@ -11,12 +11,12 @@ import java.util.Arrays;
 import java.util.Objects;
 
 // SellOrderSpendingProof introduced to be able to open the SellOrderProposition, that can be satisfied in 2 cases:
-// 1) If the seller decided to cancel car sell - so should provide the proof of ownership.
-// 2) If the buyer specified in the SellOrder confirmed the operations - purchased the car.
+// 1) If the seller decided to cancel the sell - so should provide the proof of ownership.
+// 2) If the buyer specified in the SellOrder confirmed the operations - purchased the tokens.
 
 // No specific JSON view is set for SellOrderSpendingProof, the default one form AbstractSignature25519 is taken.
 public final class SellOrderSpendingProof extends AbstractSignature25519<PrivateKey25519, SellOrderProposition> {
-    // To distinguish who opened the CarSellOrderBox: seller or buyer
+    // To distinguish who opened the TokenSellOrderBox: seller or buyer
     private final boolean isSeller;
 
     public static final int SIGNATURE_LENGTH = Ed25519.signatureLength();
@@ -37,10 +37,8 @@ public final class SellOrderSpendingProof extends AbstractSignature25519<Private
     @Override
     public boolean isValid(SellOrderProposition proposition, byte[] message) {
         if(isSeller) {
-            // Car seller wants to discard selling.
             return Ed25519.verify(signatureBytes, message, proposition.getOwnerPublicKeyBytes());
         } else {
-            // Specific buyer wants to buy the car.
             return Ed25519.verify(signatureBytes, message, proposition.getBuyerPublicKeyBytes());
         }
     }
@@ -71,7 +69,7 @@ public final class SellOrderSpendingProof extends AbstractSignature25519<Private
 
     @Override
     public byte proofTypeId() {
-        return CarRegistryProofsIdsEnum.SellOrderSpendingProofId.id();
+        return ProofsIdsEnum.SellOrderSpendingProofId.id();
     }
 
     @Override
