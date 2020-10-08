@@ -2,9 +2,6 @@ package io.horizen.tokenization.token.api;
 
 import akka.http.javadsl.server.Route;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.google.common.primitives.Bytes;
-import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.horizen.api.http.ApiResponse;
@@ -26,11 +23,12 @@ import com.horizen.serialization.Views;
 import com.horizen.transaction.BoxTransaction;
 import com.horizen.utils.ByteArrayWrapper;
 import com.horizen.utils.BytesUtils;
-import com.typesafe.config.Config;
 import io.horizen.tokenization.token.api.request.*;
 import io.horizen.tokenization.token.box.TokenBox;
 import io.horizen.tokenization.token.box.TokenSellOrderBox;
 import io.horizen.tokenization.token.box.data.TokenBoxData;
+import io.horizen.tokenization.token.config.TokenDictionary;
+import io.horizen.tokenization.token.config.TokenDictionaryItem;
 import io.horizen.tokenization.token.info.TokenBuyOrderInfo;
 import io.horizen.tokenization.token.info.TokenCreateInfo;
 import io.horizen.tokenization.token.info.TokenSellOrderInfo;
@@ -40,11 +38,8 @@ import io.horizen.tokenization.token.transaction.*;
 import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
 import scala.Option;
 import scala.Some;
-import scorex.crypto.hash.Blake2b256;
-
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+
 
 /**
  * That class provide routes for the creation of custom transactions
@@ -62,16 +57,15 @@ public class TokenApi extends ApplicationApiGroup {
 
     private final SidechainTransactionsCompanion sidechainTransactionsCompanion;
     private IDInfoDBService IDInfoDBService;
-    private ArrayList<String> creator;
-    private HashMap<String,Integer >maxTokenPerType;
+    private TokenDictionary tokenDictionary;
+
 
     @Inject
     public TokenApi(@Named("SidechainTransactionsCompanion") SidechainTransactionsCompanion sidechainTransactionsCompanion, IDInfoDBService IDInfoDBService,
-                    @Named("ConfigTokenizationApp") Config config) {
+                    @Named("TokenDictionary") TokenDictionary tokenDictionary) {
         this.sidechainTransactionsCompanion = sidechainTransactionsCompanion;
         this.IDInfoDBService = IDInfoDBService;
-        this.creator = (ArrayList<String>) config.getObject("token").get("creatorPropositions").unwrapped();
-        this.maxTokenPerType = (HashMap<String,Integer>) config.getObject("token").get("typeLimit").unwrapped();
+        this.tokenDictionary = tokenDictionary;
     }
 
     // Define the base path for API url, i.e. according current config we could access that Api Group by using address 127.0.0.1:9085/tokenApi
@@ -96,11 +90,11 @@ public class TokenApi extends ApplicationApiGroup {
     }
 
     private ApiResponse supply(SidechainNodeView view) {
-        SupplyItem[] items = new SupplyItem[this.maxTokenPerType.keySet().size()];
+        SupplyItem[] items = new SupplyItem[this.tokenDictionary.getAllTypes().size()];
         int index = 0;
-        for (String tokenType: this.maxTokenPerType.keySet()){
+        for (String tokenType: this.tokenDictionary.getAllTypes()){
             int typeCount = IDInfoDBService.getTypeCount(tokenType);
-            items[index] = new SupplyItem(tokenType, typeCount, this.maxTokenPerType.get(tokenType));
+            items[index] = new SupplyItem(tokenType, typeCount, this.tokenDictionary.getItem(tokenType).getMaxSupply());
             index++;
         }
         return new SupplyResponse(items);
@@ -112,26 +106,30 @@ public class TokenApi extends ApplicationApiGroup {
             PublicKey25519Proposition ownershipProposition = PublicKey25519PropositionSerializer.getSerializer()
                     .parseBytes(BytesUtils.fromHexString(ent.proposition));
 
-
-            // Check that the proposition is included in the list of propositions in config that are able to create tokens.
-            if (!this.creator.contains(ent.proposition)) {
-                throw new IllegalStateException("This proposition is not allowed to create token!");
-            }
-
+            TokenDictionaryItem configItem = this.tokenDictionary.getItem(ent.type);
             // Check that the token type is correct
-            if (!this.maxTokenPerType.containsKey(ent.type)) {
+            if (configItem == null) {
                 throw new IllegalStateException("Token type not allowed");
             }
 
+            if (configItem.getCreationTYpe() != TokenDictionaryItem.CreationTYpe.MANUAL) {
+                throw new IllegalStateException("Manual forging not allowed for this token type");
+            }
+
+            // Check that the proposition is included in the list of propositions in config that are able to create tokens.
+            if (!configItem.getCreatorPropositions().contains(ent.proposition)) {
+                throw new IllegalStateException("This proposition is not allowed to create this token token!");
+            }
+
             // Check that the max number of tokens has not yet been reached
-            if(IDInfoDBService.getTypeCount(ent.type) + ent.numberOfTokens > this.maxTokenPerType.get(ent.type)) {
+            if(IDInfoDBService.getTypeCount(ent.type) + ent.numberOfTokens > configItem.getMaxSupply()) {
                 throw new IllegalStateException("Maximum number of tokens reached for this type");
             }
 
 
            TokenBoxData[] tokenBoxData = new TokenBoxData[ent.numberOfTokens];
             for (int i = 0; i < ent.numberOfTokens; i++) {
-                String id =  this.generateTokenId(view, i);
+                String id =  IDInfoDBService.generateTokenId(i, Optional.of(view.getNodeMemoryPool()));
                 tokenBoxData[i] = new TokenBoxData(ownershipProposition, id, ent.type);
             }
 
@@ -586,15 +584,6 @@ public class TokenApi extends ApplicationApiGroup {
         }
     }
 
-    // generates a random tokenid  of 20 characters and check that is unique (both in local id store and in mempool).
-    private String generateTokenId(SidechainNodeView view, int nonce){
-        String id = null;
-        do {
-            byte[] hash = Blake2b256.hash(Bytes.concat(Longs.toByteArray(new Date().getTime()), Ints.toByteArray(nonce)));
-            id = BytesUtils.toHexString(hash).substring(0, 20);
-        } while (!IDInfoDBService.validateId(id, Optional.of(view.getNodeMemoryPool())));
-        return id;
-    }
 
     // Utility functions to get from the current mempool the list of all boxes to be opened.
     private List<byte[]> boxesFromMempool(NodeMemoryPool mempool) {

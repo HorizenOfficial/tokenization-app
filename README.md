@@ -7,6 +7,8 @@ It shows in particular:
 * How to introduce custom Transactions, Boxes, Proofs and Propositions.
 * How to define custom API.
 * How to manage custom types and API endpoints.
+* How to add an application specific configuration
+* How to extend the forger logic to include some auto-generated transactions
 
 **Tokenization custom logic**
 
@@ -39,26 +41,35 @@ For initial testing on regtest, you can use the predefined [tokenization_setting
 The bottom part of the configuration file contains some specific parameters used by this application:
 
 token {
-    typeLimit {
-        ABC = 5
-        CDE = 7
-    }
-    creatorPropositions = [
-        "722138a76751fcf452cc34bd11bc93b75515c13bcf4038552aabb1ff5b0eeee6",
-        "3368c35a21d9edef9a643dbd4fce0d7fa8c8bf4e556bd449780d9926e4f09689"
+    dictionary = [
+        {
+            type =  "ABC"
+            maxSupply = 10       
+     	    creationType = "auto"
+	        creationPerBlock = 2
+        },
+        {
+            type =  "CDE"
+            maxSupply = 7  
+	        creationType = "manual"
+	        creatorPropositions = [
+	          "4a2437a1106a9b5912dfc2162180fe5758cfe449f45c72bfdee7ad928a570c0e",
+	          "af50c5bb2ee3dbead9828f35b12224acdad89d9cf389ad269bed9761f271c045"
+	        ]
+        }    
     ]
 }
 
-- token.typeLimit
- 
-  lists all the possible token types that can be forged (created with a createToken custom transaction). 
-  For each type we have an integer number that express the maximum total number of tokens of that type that can be forged.
-  
-- token.creatorPropositions
+Each element of the config property token.dictionary describes a type of token exchanged in our sidechain, 
+with the following properties:
+- type: string unique identifier of the token
+- maxSupply: total overall number of tokens that can be created
+- creationType: can have the following values:
+    - “manual”: new tokens must be created manually with a createTokenTransaction
+    - “auto”:  new tokens are created automatically at every forged block. The tokens created are locked with  the same public key of the block forger. For tokens type having this “auto” property set, the  manual createTokenTransaction cannot be invoked.
+- creationPerBlock: if creationType=”auto”, this property specifies the amount of tokens that are generated on each block, until the maxSupply value is reached
+- creatorPropositions: if creationType=”manual”, this property specifies the list of publickeys that are allowed to execute a createTokenTransaction, until the maxSupply value is reached. New tokens generated are  locked with  the public key of the creator that executes the transaction.
 
-  lists all the public keys of the "creator users", the only users that are allowed to forge new tokens.
-  Only users having in local wallet a private key corresponding to one of the public key listed here will be allowed
-  to create and send a createToken transaction.
   
 **Bootstrap and run**
 

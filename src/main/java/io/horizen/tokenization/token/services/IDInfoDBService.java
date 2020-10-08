@@ -1,7 +1,8 @@
 package io.horizen.tokenization.token.services;
 
-import cats.kernel.Hash;
+import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.horizen.box.Box;
@@ -10,15 +11,15 @@ import com.horizen.proposition.Proposition;
 import com.horizen.storage.Storage;
 import com.horizen.transaction.BoxTransaction;
 import com.horizen.utils.ByteArrayWrapper;
+import com.horizen.utils.BytesUtils;
 import com.horizen.utils.Pair;
-import com.typesafe.config.ConfigValue;
 import io.horizen.tokenization.token.box.TokenBox;
 import io.horizen.tokenization.token.box.TokenSellOrderBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scorex.crypto.hash.Blake2b256;
 import java.util.*;
-import com.typesafe.config.Config;
+
 
 /**
  * This service manages a local db with the list of all token IDS declared on the chain.
@@ -82,6 +83,16 @@ public class IDInfoDBService {
         }
         //if we arrive here, the vin is valid
         return true;
+    }
+
+    // generates a random tokenid  of 20 characters and check that is unique (both in local id store and in mempool).
+    public String generateTokenId(int nonce, Optional<NodeMemoryPool> memoryPool){
+        String id = null;
+        do {
+            byte[] hash = Blake2b256.hash(Bytes.concat(Longs.toByteArray(new Date().getTime()), Ints.toByteArray(nonce)));
+            id = BytesUtils.toHexString(hash).substring(0, 20).toUpperCase();
+        } while (!this.validateId(id, memoryPool));
+        return id;
     }
 
     public void rollback(byte[] version) {

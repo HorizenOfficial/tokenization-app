@@ -15,10 +15,13 @@ import com.horizen.box.data.NoncedBoxDataSerializer;
 import com.horizen.companion.SidechainBoxesDataCompanion;
 import com.horizen.companion.SidechainProofsCompanion;
 import com.horizen.companion.SidechainTransactionsCompanion;
+import com.horizen.forge.ApplicationForger;
 import com.typesafe.config.Config;
 import io.horizen.tokenization.token.api.TokenApi;
 import io.horizen.tokenization.token.box.*;
 import io.horizen.tokenization.token.box.data.*;
+import io.horizen.tokenization.token.config.TokenDictionary;
+import io.horizen.tokenization.token.forge.TokenApplicationForger;
 import io.horizen.tokenization.token.proof.ProofsIdsEnum;
 import io.horizen.tokenization.token.proof.SellOrderSpendingProofSerializer;
 import io.horizen.tokenization.token.transaction.*;
@@ -80,6 +83,7 @@ public class TokenAppModule
 
         // Specify how to serialize custom Transaction.
         HashMap<Byte, TransactionSerializer<BoxTransaction<Proposition, Box<Proposition>>>> customTransactionSerializers = new HashMap<>();
+        customTransactionSerializers.put(TokenTransactionsIdsEnum.ForgeTokenTransactionId.id(), (TransactionSerializer) ForgeTokensTransactionSerializer.getSerializer());
         customTransactionSerializers.put(TokenTransactionsIdsEnum.CreateTokensTransactionId.id(), (TransactionSerializer) CreateTokensTransactionSerializer.getSerializer());
         customTransactionSerializers.put(TokenTransactionsIdsEnum.SellTokenTransactionId.id(), (TransactionSerializer) SellTokenTransactionSerializer.getSerializer());
         customTransactionSerializers.put(TokenTransactionsIdsEnum.BuyTokenTransactionId.id(), (TransactionSerializer) BuyTokenTransactionSerializer.getSerializer());
@@ -134,10 +138,15 @@ public class TokenAppModule
                 .annotatedWith(Names.named("ApplicationState"))
                 .to(TokenApplicationState.class);
 
-        // Define Application state and wallet logic:
-        bind(Config.class)
-                .annotatedWith(Names.named("ConfigTokenizationApp"))
-                .toInstance(this.config);
+        // Define Application forger logic:
+        bind(ApplicationForger.class)
+                .annotatedWith(Names.named("ApplicationForger"))
+                .to(TokenApplicationForger.class);
+
+        //This custom app bindings define the dictionary of possible tokens handled (build from config file)
+        bind(TokenDictionary.class)
+                .annotatedWith(Names.named("TokenDictionary"))
+                .toInstance(new TokenDictionary(this.config));
 
         bind(Storage.class)
                 .annotatedWith(Names.named("SecretStorage"))

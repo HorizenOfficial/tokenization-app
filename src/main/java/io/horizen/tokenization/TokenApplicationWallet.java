@@ -4,7 +4,6 @@ import com.horizen.box.Box;
 import com.horizen.proposition.Proposition;
 import com.horizen.secret.Secret;
 import com.horizen.wallet.ApplicationWallet;
-
 import java.util.List;
 
 // There is no custom logic for this app at the moment
