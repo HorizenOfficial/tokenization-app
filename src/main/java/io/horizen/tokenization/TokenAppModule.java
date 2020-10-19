@@ -15,11 +15,14 @@ import com.horizen.box.data.NoncedBoxDataSerializer;
 import com.horizen.companion.SidechainBoxesDataCompanion;
 import com.horizen.companion.SidechainProofsCompanion;
 import com.horizen.companion.SidechainTransactionsCompanion;
+import com.horizen.forge.ApplicationForger;
 import com.typesafe.config.Config;
 import io.horizen.tokenization.token.api.TokenApi;
 import io.horizen.tokenization.token.box.*;
 import io.horizen.tokenization.token.box.data.*;
-import io.horizen.tokenization.token.proof.CarRegistryProofsIdsEnum;
+import io.horizen.tokenization.token.config.TokenDictionary;
+import io.horizen.tokenization.token.forge.TokenApplicationForger;
+import io.horizen.tokenization.token.proof.ProofsIdsEnum;
 import io.horizen.tokenization.token.proof.SellOrderSpendingProofSerializer;
 import io.horizen.tokenization.token.transaction.*;
 import com.horizen.proof.Proof;
@@ -71,15 +74,16 @@ public class TokenAppModule
         customBoxDataSerializers.put(TokenBoxesDataIdsEnum.TokenBoxDataId.id(), (NoncedBoxDataSerializer) TokenBoxDataSerializer.getSerializer());
         customBoxDataSerializers.put(TokenBoxesDataIdsEnum.TokenSellOrderBoxDataId.id(), (NoncedBoxDataSerializer) TokenSellOrderBoxDataSerializer.getSerializer());
 
-        // No custom secrets for CarRegistry app.
+        // No custom secrets for this app.
         HashMap<Byte, SecretSerializer<Secret>> customSecretSerializers = new HashMap<>();
 
         // Specify how to serialize custom Proofs.
         HashMap<Byte, ProofSerializer<Proof<Proposition>>> customProofSerializers = new HashMap<>();
-        customProofSerializers.put(CarRegistryProofsIdsEnum.SellOrderSpendingProofId.id(), (ProofSerializer) SellOrderSpendingProofSerializer.getSerializer());
+        customProofSerializers.put(ProofsIdsEnum.SellOrderSpendingProofId.id(), (ProofSerializer) SellOrderSpendingProofSerializer.getSerializer());
 
         // Specify how to serialize custom Transaction.
         HashMap<Byte, TransactionSerializer<BoxTransaction<Proposition, Box<Proposition>>>> customTransactionSerializers = new HashMap<>();
+        customTransactionSerializers.put(TokenTransactionsIdsEnum.ForgeTokenTransactionId.id(), (TransactionSerializer) ForgeTokensTransactionSerializer.getSerializer());
         customTransactionSerializers.put(TokenTransactionsIdsEnum.CreateTokensTransactionId.id(), (TransactionSerializer) CreateTokensTransactionSerializer.getSerializer());
         customTransactionSerializers.put(TokenTransactionsIdsEnum.SellTokenTransactionId.id(), (TransactionSerializer) SellTokenTransactionSerializer.getSerializer());
         customTransactionSerializers.put(TokenTransactionsIdsEnum.BuyTokenTransactionId.id(), (TransactionSerializer) BuyTokenTransactionSerializer.getSerializer());
@@ -99,7 +103,7 @@ public class TokenAppModule
         File stateStore = new File(dataDirPath + "/state");
         File historyStore = new File(dataDirPath + "/history");
         File consensusStore = new File(dataDirPath + "/consensusData");
-        File carInfoStore = new File(dataDirPath + "/cars");
+        File tokenInfoStore = new File(dataDirPath + "/tokens");
 
         // No core API endpoints to be disabled:
         List<Pair<String, String>> rejectedApiPaths = new ArrayList<>();
@@ -134,10 +138,15 @@ public class TokenAppModule
                 .annotatedWith(Names.named("ApplicationState"))
                 .to(TokenApplicationState.class);
 
-        // Define Application state and wallet logic:
-        bind(Config.class)
-                .annotatedWith(Names.named("ConfigTokenizationApp"))
-                .toInstance(this.config);
+        // Define Application forger logic:
+        bind(ApplicationForger.class)
+                .annotatedWith(Names.named("ApplicationForger"))
+                .to(TokenApplicationForger.class);
+
+        //This custom app bindings define the dictionary of possible tokens handled (build from config file)
+        bind(TokenDictionary.class)
+                .annotatedWith(Names.named("TokenDictionary"))
+                .toInstance(new TokenDictionary(this.config));
 
         bind(Storage.class)
                 .annotatedWith(Names.named("SecretStorage"))
@@ -161,8 +170,8 @@ public class TokenAppModule
                 .annotatedWith(Names.named("ConsensusStorage"))
                 .toInstance(IODBStorageUtil.getStorage(consensusStore));
         bind(Storage.class)
-                .annotatedWith(Names.named("CarInfoStorage"))
-                .toInstance(IODBStorageUtil.getStorage(carInfoStore));
+                .annotatedWith(Names.named("TokenInfoStorage"))
+                .toInstance(IODBStorageUtil.getStorage(tokenInfoStore));
 
         bind(new TypeLiteral<List<Pair<String, String>>> () {})
                 .annotatedWith(Names.named("RejectedApiPaths"))
@@ -173,8 +182,7 @@ public class TokenAppModule
                 .toInstance(transactionsCompanion);
     }
 
-    // Add car registry specific API endpoints:
-    // CarApi endpoints processing will be added to the API server.
+    // Add app specific API endpoints
     @Provides @Named("CustomApiGroups")
     List<ApplicationApiGroup> getCustomApiGroups(TokenApi tokenApi) {
         List<ApplicationApiGroup> customApiGroups = new ArrayList<>();

@@ -1,7 +1,8 @@
 package io.horizen.tokenization.token.services;
 
-import cats.kernel.Hash;
+import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.horizen.box.Box;
@@ -10,19 +11,20 @@ import com.horizen.proposition.Proposition;
 import com.horizen.storage.Storage;
 import com.horizen.transaction.BoxTransaction;
 import com.horizen.utils.ByteArrayWrapper;
+import com.horizen.utils.BytesUtils;
 import com.horizen.utils.Pair;
-import com.typesafe.config.ConfigValue;
 import io.horizen.tokenization.token.box.TokenBox;
 import io.horizen.tokenization.token.box.TokenSellOrderBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scorex.crypto.hash.Blake2b256;
 import java.util.*;
-import com.typesafe.config.Config;
+
 
 /**
- * This service manages a local db with the list of all veichle identification numbers (vin) declared on the chain.
- * The vin could be present inside two type of boxes: CarBox and CarSellOrderBox.
+ * This service manages a local db with the list of all token IDS declared on the chain.
+ * The tokenId could be present inside two type of boxes: TokenBox and TokenSellOrderBox.
+ * For each type the service stores also a counter of all tokens forged of that type.
  */
 public class IDInfoDBService {
 
@@ -30,22 +32,22 @@ public class IDInfoDBService {
     protected Logger log = LoggerFactory.getLogger(IDInfoDBService.class.getName());
 
     @Inject
-    public IDInfoDBService(@Named("CarInfoStorage") Storage IDInfoStorage){
+    public IDInfoDBService(@Named("TokenInfoStorage") Storage IDInfoStorage){
         this.IDInfoStorage = IDInfoStorage;
         log.debug("TokenInfoStorage now contains: "+ IDInfoStorage.getAll().size()+" elements");
     }
 
-    public void updateAll(byte[] version, Set<String> idToAdd, HashMap<String, Integer> typeToAdd){
+    public void updateAll(byte[] version, Set<String> idToAdd, Map<String, Integer> forgedCounters){
         log.debug("TokenInfoStorage updateID");
-        List<Pair<ByteArrayWrapper, ByteArrayWrapper>> toUpdate = new ArrayList<>(idToAdd.size()+typeToAdd.size());
+        List<Pair<ByteArrayWrapper, ByteArrayWrapper>> toUpdate = new ArrayList<>(idToAdd.size()+forgedCounters.size());
         idToAdd.forEach(ele -> {
             toUpdate.add(buildDBElement(ele));
         });
 
         log.debug("TokenInfoStorage updateTypeCount");
-        typeToAdd.keySet().forEach(ele -> {
+        forgedCounters.keySet().forEach(ele -> {
             int count = getTypeCount(ele);
-            toUpdate.add(buildDBCountingElement(ele,typeToAdd.get(ele)+count));
+            toUpdate.add(buildDBCountingElement(ele,forgedCounters.get(ele)+count));
         });
         IDInfoStorage.update(new ByteArrayWrapper(version), toUpdate, new ArrayList<>());
 
@@ -73,7 +75,7 @@ public class IDInfoDBService {
         //in the vin is not found, and the mempool was provided, we check also there
         if (memoryPool.isPresent()) {
             for (BoxTransaction<Proposition, Box<Proposition>> transaction : memoryPool.get().getTransactions()) {
-                Set<String> vinInMempool = extractIdFromBoxes(transaction.newBoxes());
+                Set<String> vinInMempool = extractTokenIdFromBoxes(transaction.newBoxes());
                 if (vinInMempool.contains(id)){
                     return false;
                 }
@@ -83,73 +85,40 @@ public class IDInfoDBService {
         return true;
     }
 
+    // generates a random tokenid  of 20 characters and check that is unique (both in local id store and in mempool).
+    public String generateTokenId(int nonce, Optional<NodeMemoryPool> memoryPool){
+        String id = null;
+        do {
+            byte[] hash = Blake2b256.hash(Bytes.concat(Longs.toByteArray(new Date().getTime()), Ints.toByteArray(nonce)));
+            id = BytesUtils.toHexString(hash).substring(0, 20).toUpperCase();
+        } while (!this.validateId(id, memoryPool));
+        return id;
+    }
+
     public void rollback(byte[] version) {
         IDInfoStorage.rollback(new ByteArrayWrapper(version));
     }
 
     /**
-     * Extracts the list of vehicle identification numbers (vin) declared in the given box list.
-     * The vin could be present inside two type of boxes: CarBox and CarSellOrderBox
+     * Extracts the list of tokenId declared in the given box list.
+     * The tokeInd could be present inside two type of boxes: TokenBox and TokenSellOrderBox
      */
-    public Set<String> extractIdFromBoxes(List<Box<Proposition>> boxes){
+    public Set<String> extractTokenIdFromBoxes(List<Box<Proposition>> boxes){
         Set<String> idList = new HashSet<String>();
         for (Box<Proposition> currentBox : boxes) {
             if (TokenBox.class.isAssignableFrom(currentBox.getClass())){
-                String id  = TokenBox.parseBytes(currentBox.bytes()).getID();
+                String id  = TokenBox.parseBytes(currentBox.bytes()).getTokenId();
                 idList.add(id);
             } else if (TokenSellOrderBox.class.isAssignableFrom(currentBox.getClass())){
-                String id  = TokenSellOrderBox.parseBytes(currentBox.bytes()).getID();
-                idList.add(id);
+                TokenSellOrderBox sellOrderBox = TokenSellOrderBox.parseBytes(currentBox.bytes());
+                for (int i = 0; i < sellOrderBox.getBoxData().getOrderItemLenght(); i++){
+                    String id  =  sellOrderBox.getBoxData().getOrderItem(i).getTokenId();
+                    idList.add(id);
+                }
             }
         }
         return idList;
     }
-
-    public HashMap<String, Integer> extractTypeFromBoxes(List<Box<Proposition>> boxes){
-        HashMap<String, Integer> typeList = new HashMap<String, Integer>();
-        for (Box<Proposition> currentBox : boxes) {
-            if (TokenBox.class.isAssignableFrom(currentBox.getClass())){
-                String type  = TokenBox.parseBytes(currentBox.bytes()).getType();
-                if (typeList.containsKey(type)) {
-                    typeList.put(type, typeList.get(type)+1);
-                }
-                else {
-                    typeList.put(type,1);
-                }
-            } else if (TokenSellOrderBox.class.isAssignableFrom(currentBox.getClass())){
-                String type  = TokenSellOrderBox.parseBytes(currentBox.bytes()).getID();
-                if (typeList.containsKey(type)) {
-                    typeList.put(type, typeList.get(type)+1);
-                }
-                else {
-                    typeList.put(type,1);
-                }
-            }
-        }
-        return typeList;
-    }
-
-    public String extractIdFromBox(Box<Proposition> box) {
-        String id = "";
-        if (TokenBox.class.isAssignableFrom(box.getClass())){
-            id += TokenBox.parseBytes(box.bytes()).getID();
-        } else if (TokenSellOrderBox.class.isAssignableFrom(box.getClass())){
-            id += TokenSellOrderBox.parseBytes(box.bytes()).getID();
-        }
-        return id;
-    }
-
-    public String extractTypeFromBox(Box<Proposition> box){
-        String type = "";
-        if (TokenBox.class.isAssignableFrom(box.getClass())){
-            type += TokenBox.parseBytes(box.bytes()).getType();
-        } else if (TokenSellOrderBox.class.isAssignableFrom(box.getClass())){
-            type += TokenSellOrderBox.parseBytes(box.bytes()).getID();
-        }
-
-        return type;
-    }
-
 
 
     private Pair<ByteArrayWrapper, ByteArrayWrapper> buildDBElement(String id){

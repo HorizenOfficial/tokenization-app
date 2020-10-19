@@ -12,9 +12,7 @@ import com.horizen.utils.Ed25519;
 import java.util.Arrays;
 
 // SellOrderProposition introduced to lock SellOrderBoxes.
-// It consists of 2 public keys: owner and buyer.
-// So it can be opened in case if owner canceled car sell or buyer purchased the car.
-// Unlocking procedure is defined in SellOrderSpendingProof and BuyCarTransaction.
+// It consists of 2 public keys: owner and buyer (he Sell oreder could be opened by any of them)
 
 // Declare default JSON view for SellOrderProposition object.
 @JsonView(Views.Default.class)

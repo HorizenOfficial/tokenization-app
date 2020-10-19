@@ -1,16 +1,18 @@
 package io.horizen.tokenization.token.api.request;
 
-// '.../carApi/acceptCarSellOrder' and '.../carApi/cancelCarSellOrder'  HTTP Post requests body representing class.
+/**
+ * '/tokenApi/createTokenSellOrder' requests body representing class.
+ */
 public class CreateTokenSellOrderRequest {
-    public String tokenBoxId; // hex representation of box id
+    public String[] tokenBoxIds; // hex representation of token box id to sell
     public String buyerProposition; // hex representation of public key proposition
     public long sellPrice;
     public long fee;
 
     // Setters to let Akka jackson JSON library to automatically deserialize the request body.
 
-    public void setTokenBoxId(String tokenBoxId) {
-        this.tokenBoxId = tokenBoxId;
+    public void setTokenBoxIds(String[] tokenBoxIds) {
+        this.tokenBoxIds = tokenBoxIds;
     }
 
     public void setBuyerProposition(String buyerProposition) {

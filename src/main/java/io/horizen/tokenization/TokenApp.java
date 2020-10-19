@@ -3,14 +3,18 @@ package io.horizen.tokenization;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.horizen.SidechainApp;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 
-// Car Registry application starting point.
+// Tokenization application starting point.
 // Application expect to be executed with a single argument - path to configuration file
-// Car Registry example has no custom settings and need only Core settings to be defined, like:
-// path to data folder, wallet seed, API server address, etc.
+// This app has some custom settngs other than the default ones. See the readme file for further info.
 public class TokenApp {
+
+    private static Logger log =  LoggerFactory.getLogger(TokenApp.class);
+
     public static void main(String[] args) {
         if (args.length == 0) {
             System.out.println("Please provide settings file name as first parameter!");
@@ -29,8 +33,8 @@ public class TokenApp {
         Injector injector = Guice.createInjector(new TokenAppModule(settingsFileName));
         SidechainApp sidechainApp = injector.getInstance(SidechainApp.class);
 
-        // Start the car registry sidechain node.
+        // Start the sidechain node.
         sidechainApp.run();
-        System.out.println("Tokenization sidechain application successfully started...");
+        log.warn("Tokenization sidechain application successfully started...");
     }
 }
